@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "ViralMind Auto Connect",
+  "description": "Envie conexões personalizadas no LinkedIn de forma automatizada.",
+  "version": "3.0",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icons/icon32.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content_collect_compose_links.js",
+        "content_compose_action.js"
+      ],
+      "matches": ["https://www.linkedin.com/*"]
+    }
+  ]
+}

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>ViralMind • Popup</title>
+  <style>
+    :root{
+      /* RADIUS */
+      --radius-xs: 6px; --radius-sm: 10px; --radius-md: 14px; --radius-lg: 18px;
+      /* SPACING */
+      --space-1: 6px; --space-2: 10px; --space-3: 14px; --space-4: 18px; --space-5: 22px;
+      /* FONTS */
+      --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      /* THEME (dark default) */
+      --bg: #0b0f14; --surface: #0f1521; --surface-2: #0c121c; --surface-3:#0a111b;
+      --stroke: #223045; --stroke-2:#2a3a52; --muted:#9fb2c7; --text:#eef4fb;
+      --accent-1:#2bd275; --accent-2:#2f7bff; --accent-3:#9b8cff;
+      --shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 10px 24px rgba(0,0,0,.35);
+      --ring: 0 0 0 2px rgba(47,123,255,.5), 0 0 0 5px rgba(47,123,255,.18);
+      --w: 360px;
+      /* BUTTON TOKENS */
+      --btn-bg: linear-gradient(180deg,#122032,#0c1523);
+      --btn-stroke:#2a3a52; --btn-text:var(--text);
+      --btn-danger-1:#e53935; --btn-danger-2:#c62828; --btn-danger-text:#fff; --btn-danger-stroke:#b71c1c;
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg:#f7f9fc; --surface:#ffffff; --surface-2:#f2f6fb; --surface-3:#eef3fb;
+        --stroke:#d9e2ef; --stroke-2:#cfd9ea; --muted:#5e6c84; --text:#0a1a33;
+        --shadow: 0 1px 0 rgba(9,30,66,.02) inset, 0 10px 24px rgba(9,30,66,.10);
+        --ring: 0 0 0 2px rgba(47,123,255,.35), 0 0 0 5px rgba(47,123,255,.15);
+        --btn-bg: linear-gradient(180deg,#ffffff,#f6f9fe);
+        --btn-stroke:#dfe5f2; --btn-text:#0a1a33;
+      }
+    }
+
+    *{ box-sizing:border-box }
+    html, body{ margin:0; padding:0; min-width:300px; width:var(--w); max-width:100vw; background:var(--bg); color:var(--text); font-family:var(--font-sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+
+    /* WRAPPER */
+    .wrap{ padding: var(--space-3); display:grid; gap: var(--space-3); }
+
+    /* CARD */
+    .card{ background: linear-gradient(180deg,var(--surface),var(--surface-2)); border:1px solid var(--stroke); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: var(--space-3); }
+
+    /* HEADER */
+    .header{ display:flex; align-items:center; gap: var(--space-2); position: sticky; top:0; z-index:2; backdrop-filter: blur(6px); border:1px solid var(--stroke); background:linear-gradient(180deg,var(--surface-2),var(--surface)); border-radius: var(--radius-md); }
+    .brand{ display:grid; gap:2px; }
+    .brand-title{ margin:0; font-size:16px; font-weight:900; letter-spacing:.2px; background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .brand-sub{ margin:0; color:var(--muted); font-size:12px; }
+    .logo{ width:32px; height:32px; border-radius: 9px; box-shadow: 0 0 0 1px rgba(43,210,117,.55) inset, 0 0 20px rgba(47,123,255,.35); }
+
+    /* TITLES */
+    .section-title{ margin:0 0 10px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; font-weight:900; }
+
+    /* FORMS */
+    .control{ display:grid; gap:6px; }
+    .control label{ font-size:12px; color:var(--muted); font-weight:800; }
+    .input,.select,.textarea{ width:100%; background:var(--surface-3); color:var(--text); border:1px solid var(--stroke-2); border-radius: 10px; padding: 8px 10px; font-size: 13px; outline: none; transition: box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+    .textarea{ resize: vertical; min-height: 68px; }
+    .input:focus,.select:focus,.textarea:focus{ box-shadow: var(--ring); border-color: transparent; }
+
+    /* GRID */
+    .grid{ display:grid; gap: 10px; }
+    .cols-2{ grid-template-columns: 1fr 1fr; }
+    @media (max-width: 340px){ .cols-2{ grid-template-columns: 1fr; } }
+
+    /* BUTTONS */
+    .btn{ appearance:none; border:1px solid var(--btn-stroke); cursor:pointer; border-radius: 12px; padding: 9px 12px; min-height: 36px; font-weight: 900; font-size: 12.5px; line-height:1; display:inline-flex; align-items:center; justify-content:center; gap:8px; transition: transform .02s ease, filter .18s ease, background .18s ease, border-color .18s ease, color .18s ease; box-shadow: var(--shadow); user-select:none; text-align:center; background: var(--btn-bg); color: var(--btn-text); }
+    .btn:hover{ filter: brightness(1.05); }
+    .btn:active{ transform: translateY(1px); }
+    .btn:focus-visible{ outline: none; box-shadow: var(--ring); }
+    .btn--danger{ background: linear-gradient(180deg, var(--btn-danger-1), var(--btn-danger-2)); color: var(--btn-danger-text); border-color: var(--btn-danger-stroke); text-shadow: 0 1px 0 rgba(0,0,0,.25); }
+    .btn--block{ width: 100%; }
+    .icon{ width: 14px; height: 14px; display:inline-block; }
+
+    /* ACTIONS */
+    .actions{ display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .actions .btn.btn--block{ grid-column: 1 / -1; }
+
+    /* HINT */
+    .hint{ font-size:11px; color:var(--muted); }
+
+    /* STATUSBAR */
+    .statusbar{ display:flex; align-items:center; justify-content:space-between; background: var(--surface-2); border:1px solid var(--stroke); border-radius: 12px; padding: 8px 10px; gap: 8px; font-size: 12.5px; }
+    .badge{ background: rgba(47,123,255,.16); color:#cfe0ff; border:1px solid rgba(47,123,255,.35); padding: 2px 8px; border-radius: 999px; font-weight: 900; font-size: 11px; letter-spacing: .2px; }
+
+    /* PROGRESS */
+    .progress{ position:relative; height: 8px; background: #0f1824; border:1px solid var(--stroke); border-radius: 999px; overflow: hidden; width: 100%; }
+    .progress > span{ display:block; height:100%; width:0%; background: linear-gradient(90deg, var(--accent-1), var(--accent-2)); transition: width .25s ease; }
+
+    /* TOASTS */
+    .toasts{ position: fixed; inset: auto 14px 14px 14px; display:grid; gap:8px; pointer-events: none; }
+    .toast{ pointer-events: auto; background: var(--surface); border:1px solid var(--stroke); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); display:flex; align-items:center; gap:10px; font-size:13px; }
+
+    /* REDUCED MOTION */
+    @media (prefers-reduced-motion: reduce){ *{ transition: none !important; animation: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap" role="application" aria-label="ViralMind Popup">
+    <header class="card header" aria-label="Identidade">
+      <img src="viral_icon_32x32.png" alt="" class="logo" />
+      <div class="brand">
+        <h1 class="brand-title">ViralMind</h1>
+        <p class="brand-sub">Ferramentas de alcance • Extensão</p>
+      </div>
+    </header>
+
+    <section class="card" aria-labelledby="title-filtros">
+      <h2 id="title-filtros" class="section-title">Filtros</h2>
+      <div class="grid">
+        <div class="control">
+          <label for="filter-role">Cargo (palavra-chave)</label>
+          <input class="input" type="text" id="filter-role" placeholder="Ex.: IA, Engenheiro, RH" autocomplete="off" />
+        </div>
+        <div class="control">
+          <label for="filter-location">Localidade (nome)</label>
+          <input class="input" type="text" id="filter-location" placeholder="Ex.: São Paulo" autocomplete="off" />
+        </div>
+        <div class="grid cols-2">
+          <div class="control">
+            <label for="network-filter">Conexões</label>
+            <select class="select" id="network-filter">
+              <option value="">Todas</option>
+              <option value='["F"]'>1º grau</option>
+              <option value='["S"]'>2º grau</option>
+              <option value='["O"]'>3º grau</option>
+              <option value='["S","O"]'>2º e 3º grau</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="message-limit">Limite de envios</label>
+            <input class="input" type="number" id="message-limit" placeholder="Ex.: 20" min="1" inputmode="numeric" />
+          </div>
+        </div>
+        <div class="control" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="skip-if-sent" aria-describedby="skip-hint" />
+          <label for="skip-if-sent" style="margin:0;color:var(--text);font-weight:800">Não enviar se já enviado</label>
+        </div>
+        <p id="skip-hint" class="hint">Quando marcado, contatos já registrados no seu log serão pulados.</p>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="title-msg">
+      <h2 id="title-msg" class="section-title">Mensagem</h2>
+      <div class="grid">
+        <div class="control">
+          <label for="custom-message">Mensagem personalizada <span class="hint">(use <code style="font-family:var(--font-mono)">{name}</code>)</span></label>
+          <textarea class="textarea" id="custom-message" placeholder="Olá {name}, ..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="title-acoes">
+      <h2 id="title-acoes" class="section-title">Ações</h2>
+      <div class="actions" role="group" aria-label="Botões de ação">
+        <button id="apply-filters" class="btn" title="Aplica filtros na busca" aria-label="Aplicar filtros">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 18h4v-2h-4v2zm-7-12v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+          Aplicar filtros
+        </button>
+
+        <button id="direct-message" class="btn" title="Enviar mensagens para resultados da busca" aria-label="Enviar mensagens">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+          Enviar mensagens
+        </button>
+
+        <button id="auto-connect" class="btn" title="Enviar convites de conexão" aria-label="Conectar">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 14c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zM6 8c0 2.21 1.79 4 4 4s4-1.79 4-4-1.79-4-4-4-4 1.79-4 4z"/></svg>
+          Conectar
+        </button>
+
+        <button id="stop-connections" class="btn btn--danger" title="Parar execução atual" aria-label="Parar">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h12v12H6z"/></svg>
+          Parar
+        </button>
+
+        <button id="send-followups-messaging" class="btn btn--block" title="Enviar follow-ups na página de Mensagens (/messaging)" aria-label="Follow-ups em Mensagens">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 6h-2v9H6v2h9l6 6zM17 2H3c-1.1 0-2 .9-2 2v14l4-4h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+          Follow-ups (Mensagens)
+        </button>
+
+        <!-- helper invisível para compat com handler legado do popup.js -->
+        <button id="seu-botao-id" class="btn" style="display:none" aria-hidden="true" tabindex="-1">helper</button>
+
+        <!-- BOTÃO RESTAURADO: Primeira Mensagem (id mantido) -->
+        <button id="btn-1-mensagem" class="btn" title="Primeira Mensagem (Conexões) — abre modal e envia se não houver histórico" aria-label="Primeira Mensagem">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+          Primeira Mensagem
+        </button>
+
+        <button id="view-log" class="btn" title="Visualizar log de envios" aria-label="Ver enviados">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zM3 9h2V7H3v2zm4 0h14V7H7v2zm0 4h14v-2H7v2zm0 4h14v-2H7v2z"/></svg>
+          Ver enviados
+        </button>
+
+        <button id="open-like-popup" class="btn" title="Atalho: curtir publicações" aria-label="Curtir publicações">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1.01 4.22 2.59C11.09 5.01 12.76 4 14.5 4 17 4 19 6 19 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          Curtir publicações
+        </button>
+      </div>
+      <p class="hint" style="margin-top:var(--space-2)">Dica: deixe o mouse fora da janela para evitar interferência em cliques automáticos.</p>
+    </section>
+
+    <section class="grid">
+      <div class="statusbar" role="status" aria-live="polite">
+        <div><strong id="progress-display">Mensagens enviadas: 0</strong></div>
+        <span id="run-badge" class="badge" aria-hidden="true">Pronto</span>
+      </div>
+      <div class="progress" aria-hidden="true" title="Progresso"><span id="progress-bar" style="width:0%"></span></div>
+    </section>
+
+    <div class="toasts" aria-live="polite" aria-atomic="true" id="toast-container"></div>
+  </div>
+
+  <!-- Sem inline scripts (CSP) -->
+  <script src="popup.js" defer></script>
+  <script src="followups_runner.js" defer></script>
+  <script src="open_like_button.js" defer></script>
+  <script src="popup_single_message.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>ViralMind • Log</title>
+  <style>
+    :root{
+      /* Tokens iguais ao popup.html */
+      --radius-xs: 6px; --radius-sm: 10px; --radius-md: 14px; --radius-lg: 18px;
+      --space-1: 6px; --space-2: 10px; --space-3: 14px; --space-4: 18px; --space-5: 22px;
+      --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+      /* THEME (dark default) */
+      --bg: #0b0f14; --surface: #0f1521; --surface-2: #0c121c; --surface-3:#0a111b;
+      --stroke: #223045; --stroke-2:#2a3a52; --muted:#9fb2c7; --text:#eef4fb;
+      --accent-1:#2bd275; --accent-2:#2f7bff; --accent-3:#9b8cff;
+      --shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 10px 24px rgba(0,0,0,.35);
+      --ring: 0 0 0 2px rgba(47,123,255,.5), 0 0 0 5px rgba(47,123,255,.18);
+      --container: 1280px;
+
+      /* BUTTON TOKENS */
+      --btn-bg: linear-gradient(180deg,#122032,#0c1523);
+      --btn-stroke:#2a3a52; --btn-text:var(--text);
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg:#f7f9fc; --surface:#ffffff; --surface-2:#f2f6fb; --surface-3:#eef3fb;
+        --stroke:#d9e2ef; --stroke-2:#cfd9ea; --muted:#5e6c84; --text:#0a1a33;
+        --shadow: 0 1px 0 rgba(9,30,66,.02) inset, 0 10px 24px rgba(9,30,66,.10);
+        --ring: 0 0 0 2px rgba(47,123,255,.35), 0 0 0 5px rgba(47,123,255,.15);
+        --btn-bg: linear-gradient(180deg,#ffffff,#f6f9fe);
+        --btn-stroke:#dfe5f2; --btn-text:#0a1a33;
+      }
+    }
+
+    *{ box-sizing: border-box }
+    html,body{ height:100% }
+    body{
+      margin:0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Layout */
+    .wrap{ max-width: var(--container); margin: 0 auto; padding: 28px 22px 34px; }
+
+    /* Header */
+    .header{
+      position: sticky; top: 0; z-index: 5;
+      margin-bottom: 18px;
+      background: linear-gradient(180deg, var(--surface-2), var(--surface));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow);
+      padding: 10px 12px;
+      backdrop-filter: blur(6px);
+    }
+    .head-row{ display:flex; align-items:center; justify-content:space-between; gap: 14px; }
+    .brand{ display:flex; align-items:center; gap:12px; }
+    .brand h1{ font-size: 16px; margin:0; font-weight: 900; letter-spacing:.2px; background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .chip{ font-size: 11px; padding:3px 10px; border:1px solid var(--stroke); border-radius: 999px; color: var(--text); background: var(--surface-3); }
+
+    .toolbar{ display:flex; align-items:center; gap:10px; flex-wrap: wrap; }
+    select, button{
+      background: var(--surface-3);
+      color: var(--text);
+      border:1px solid var(--stroke-2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      outline: none;
+      box-shadow: var(--shadow);
+      font-weight: 900;
+    }
+    select{ min-width: 240px; }
+    select:focus, button:focus{ box-shadow: var(--ring); border-color: transparent; }
+
+    button{
+      background: var(--btn-bg);
+      border-color: var(--btn-stroke);
+      cursor: pointer;
+      transition: transform .02s ease, filter .18s ease, background .18s ease, border-color .18s ease;
+    }
+    button:hover{ filter: brightness(1.05); }
+    button:active{ transform: translateY(1px); }
+
+    /* Grid principal */
+    .grid{ display: grid; grid-template-columns: 1fr; gap: 18px; }
+    @media (min-width: 980px){ .grid{ grid-template-columns: 1.25fr .75fr; } }
+
+    /* Cards / KPI */
+    .kpi-row{ display:grid; gap: 18px; grid-template-columns: repeat(1, 1fr); margin-bottom: 18px; }
+    @media (min-width: 640px){ .kpi-row{ grid-template-columns: repeat(3, 1fr); } }
+
+    .card{
+      background: linear-gradient(180deg, var(--surface), var(--surface-2));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .card.kpi{ display:flex; flex-direction:column; gap:8px; min-height: 110px; }
+    .kpi-title{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing:.5px; }
+    .kpi-value{ font-size: 28px; font-weight: 900; color: var(--text); }
+    .kpi-sub{ color: var(--muted); font-size: 12px; }
+
+    /* Charts */
+    .charts{ display: grid; gap: 18px; grid-template-columns: 1fr; }
+    .chart-card{ padding: 14px 16px; }
+    .chart-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom: 12px; }
+    .chart-head h3{ margin:0; font-size: 13px; color: var(--muted); font-weight: 900; letter-spacing:.2px; display:flex; align-items:center; gap:8px; }
+    .chart-head svg{ opacity:.9 }
+    .canvas-wrap{
+      background: var(--surface-3); border:1px dashed var(--stroke-2); border-radius: var(--radius-sm);
+      padding: 10px;
+    }
+    canvas{ width: 100%; height: 260px; display:block; }
+    .legend{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .legend-item{ display:flex; align-items:center; gap:10px; color: var(--muted); font-size: 13px; }
+    .legend-color{ width:14px; height:14px; border-radius: 3px; display:inline-block; border:1px solid rgba(0,0,0,.25); }
+
+    /* Lists (colapsáveis) */
+    .lists{ display: grid; gap: 18px; grid-template-columns: 1fr; }
+    @media (min-width: 1160px){ .lists{ grid-template-columns: repeat(2, 1fr); } }
+
+    .group{
+      background: linear-gradient(180deg, var(--surface), var(--surface-2));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .group-title{
+      display:flex; align-items:center; justify-content:space-between; gap:14px;
+      padding: 12px 14px;
+      border-bottom:1px solid var(--stroke);
+    }
+    .title-text{ font-weight:900; letter-spacing:.2px; display:flex; align-items:center; gap:10px; }
+    .title-text svg{ opacity:.9 }
+    .group-title small{ color: var(--muted) }
+
+    .toggle-btn{
+      min-width: 36px; height: 32px; display:inline-flex; align-items:center; justify-content:center;
+      background: var(--surface-3); border:1px solid var(--stroke-2); color:var(--text); border-radius: 10px; font-weight: 900; cursor: pointer;
+      transition: background .18s ease, transform .02s ease;
+    }
+    .toggle-btn[aria-expanded="true"]{ background: var(--surface); }
+    .toggle-btn:active{ transform: translateY(1px) }
+
+    .group-body{ padding: 12px 12px 16px; }
+    .log-list{ list-style: none; padding:0; margin: 0; display:flex; flex-direction:column; gap:10px; max-height: 420px; overflow:auto; }
+    .log-list li{
+      background: var(--surface-3);
+      border:1px solid var(--stroke);
+      border-radius: 12px; padding: 10px 12px; color: var(--text);
+      box-shadow: inset 0 -1px 0 rgba(255,255,255,.02);
+    }
+    .log-list a{ color: var(--accent-2); text-decoration: none; }
+    .log-list a:hover{ text-decoration: underline; }
+    .collapsed{ display:none !important; }
+
+    /* Rodapé */
+    .foot{ margin-top: 22px; color: var(--muted); font-size: 12px; text-align: center; opacity: .9; }
+
+    /* Scrollbar personalizada (Webkit) */
+    .log-list::-webkit-scrollbar{ width: 10px; }
+    .log-list::-webkit-scrollbar-track{ background: var(--surface); border-radius: 10px; }
+    .log-list::-webkit-scrollbar-thumb{ background: var(--stroke-2); border-radius: 10px; border:2px solid var(--surface); }
+    .log-list::-webkit-scrollbar-thumb:hover{ background: #2b3750; }
+
+    /* Acessibilidade / Movimento reduzido */
+    @media (prefers-reduced-motion: reduce){
+      *{ transition: none !important; animation: none !important }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="head-row">
+        <div class="brand">
+          <h1>ViralMind • Log</h1>
+          <span class="chip">Relatórios</span>
+        </div>
+        <div class="toolbar">
+          <!-- Manteve IDs/valores originais -->
+          <select id="export-scope" title="Escopo para exportação">
+            <option value="primeira">Somente Primera Mensagem</option>
+            <option value="all">Exportar: Todos os grupos</option>
+            <option value="mensagens">Somente Mensagens Diretas</option>
+            <option value="conexoes">Somente Conexões (sem nota)</option>
+            <option value="conexoesMsg">Somente Conexões com Mensagem</option>
+            <option value="conversas">Somente Fallow-ups</option>
+          </select>
+          <button id="export-csv" title="Exportar CSV">Exportar CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="card kpi">
+        <div class="kpi-title">Curtidas enviadas</div>
+        <div class="kpi-value" id="likes-count">0</div>
+        <div class="kpi-sub">Total (todos os logs)</div>
+      </div>
+      <div class="card kpi">
+        <div class="kpi-title">Dica</div>
+        <div class="kpi-value" style="font-size:18px; font-weight:700;">Clique nos títulos para recolher/expandir</div>
+        <div class="kpi-sub">As listas ao lado podem ser colapsadas</div>
+      </div>
+      <div class="card kpi" style="border:1px solid rgba(148,163,184,.2);">
+        <div class="kpi-title">Exportação</div>
+        <div class="kpi-value" style="font-size:18px; font-weight:700;">CSV por grupo</div>
+        <div class="kpi-sub">Use o seletor no topo e o botão Exportar</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Coluna 1: Gráficos -->
+      <section class="charts">
+        <div class="card chart-card">
+          <div class="chart-head">
+            <h3>
+              <!-- ícone -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 19h16M7 16V8m5 8V4m5 12v-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Atividade diária (últimos 30 dias)
+            </h3>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-daily" width="900" height="260"></canvas>
+          </div>
+        </div>
+
+        <div class="card chart-card">
+          <div class="chart-head">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 19h16M6 15l3-3 3 3 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Atividade mensal (últimos 12 meses)
+            </h3>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-monthly" width="900" height="260"></canvas>
+          </div>
+        </div>
+
+        <div class="card chart-card">
+          <div class="chart-head">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 7a5 5 0 110 10 5 5 0 010-10zm0-4v2m0 14v2m9-9h-2M5 12H3m13.657-6.657l-1.414 1.414M6.757 17.243l-1.414 1.414m0-12.728l1.414 1.414M17.243 17.243l1.414 1.414" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Distribuição por localidade
+            </h3>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-locations" width="900" height="260"></canvas>
+          </div>
+          <div class="legend" id="chart-locations-legend"></div>
+        </div>
+      </section>
+
+      <!-- Coluna 2: Listas -->
+      <section class="lists">
+        <div class="group">
+          <div class="group-title" id="mensagens-title">
+            <span class="title-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Mensagens Diretas
+            </span>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <small>lista</small>
+              <button class="toggle-btn" data-target="#mensagens-list" aria-expanded="false">+</button>
+            </div>
+          </div>
+          <div class="group-body">
+            <ul id="mensagens-list" class="log-list">
+              <!-- preenchido pelo log.js -->
+            </ul>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">
+            <span class="title-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 7v10m5-5H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Conexões sem Nota
+            </span>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <small>lista</small>
+              <button class="toggle-btn" data-target="#conexoes-list" aria-expanded="false">+</button>
+            </div>
+          </div>
+          <div class="group-body">
+            <ul id="conexoes-list" class="log-list">
+              <!-- preenchido pelo log.js -->
+            </ul>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">
+            <span class="title-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 7h10v10H7zM4 4h16v16H4z" stroke="currentColor" stroke-width="1.5"/></svg>
+              Conexões com Mensagem
+            </span>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <small>lista</small>
+              <button class="toggle-btn" data-target="#conexoes-mensagens-list" aria-expanded="false">+</button>
+            </div>
+          </div>
+          <div class="group-body">
+            <ul id="conexoes-mensagens-list" class="log-list">
+              <!-- preenchido pelo log.js -->
+            </ul>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title" id="primeira-title">
+            <span class="title-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5l6 6-6 6-6-6 6-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              Primera Mensagem
+            </span>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <small>lista</small>
+              <button class="toggle-btn" data-target="#primeira-mensagem-list" aria-expanded="false">+</button>
+            </div>
+          </div>
+          <div class="group-body">
+            <ul id="primeira-mensagem-list" class="log-list">
+              <!-- preenchido pelo log.js (Primera Mensagem) -->
+            </ul>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title" id="conversas-title">
+            <span class="title-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 5h14v10H7l-2 4V5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Fallow-ups
+            </span>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <small>lista</small>
+              <button class="toggle-btn" data-target="#conversas-list" aria-expanded="false">+</button>
+            </div>
+          </div>
+          <div class="group-body">
+            <ul id="conversas-list" class="log-list">
+              <!-- preenchido pelo log.js -->
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="foot">ViralMind — painel de logs e métricas</div>
+  </div>
+
+  <!-- mantém referência original ao script -->
+  <script src="log.js"></script>
+</body>
+</html>

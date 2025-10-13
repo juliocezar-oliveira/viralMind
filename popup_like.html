@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Curtir publicações</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 12px; }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    textarea { width: 100%; height: 130px; resize: vertical; }
+    .row { margin: 10px 0; }
+    .btn { padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+    .btn-primary { background: #0a66c2; color: #fff; border: none; }
+    .muted { color: #666; font-size: 12px; }
+    .log { margin-top: 12px; max-height: 260px; overflow: auto; border: 1px solid #ddd; padding: 8px; border-radius: 6px; }
+    .ok { color: #0a8; }
+    .warn { color: #c80; }
+    .err { color: #c00; }
+    .progress { margin-top: 8px; font-size: 13px; }
+    label { user-select: none; }
+  </style>
+</head>
+<body>
+  <h1>Curtir publicações (LinkedIn)</h1>
+
+  <div class="row">
+    <label for="like-urls"><b>Cole os links das publicações</b> (separe por vírgula, espaço ou quebras de linha):</label>
+    <textarea id="like-urls" placeholder="https://www.linkedin.com/posts/..., https://www.linkedin.com/ugcPost/..., ..."></textarea>
+    <div class="muted">Dica: pode colar com UTM; nós cuidamos disso.</div>
+  </div>
+
+  <div class="row">
+    <label><input id="close-after" type="checkbox" checked /> Fechar aba depois de curtir</label>
+  </div>
+
+  <div class="row">
+    <button id="btn-like" class="btn btn-primary">Curtir</button>
+    <span id="progress" class="progress"></span>
+  </div>
+
+  <div id="log" class="log" aria-live="polite"></div>
+
+  <script src="popup_like.js" defer></script>
+</body>
+</html>
