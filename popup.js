@@ -2,20 +2,20 @@
 document.addEventListener("DOMContentLoaded", () => {
   const $ = (id) => document.getElementById(id);
 
-  const filterRole      = $("filter-role");
-  const filterLocation  = $("filter-location");
-  const networkFilter   = $("network-filter");
-  const messageLimit    = $("message-limit");
-  const skipIfSent      = $("skip-if-sent");
+  const filterRole = $("filter-role");
+  const filterLocation = $("filter-location");
+  const networkFilter = $("network-filter");
+  const messageLimit = $("message-limit");
+  const skipIfSent = $("skip-if-sent");
   const progressDisplay = $("progress-display");
 
   const applyFiltersBtn = $("apply-filters");
-  const directMsgBtn    = $("direct-message");
-  const connectBtn      = $("auto-connect");
-  const stopBtn         = $("stop-connections");
-  const viewLogBtn      = $("view-log");
-  const readConvsBtn    = $("read-conversations");
-  const followupsBtn    = $("send-followups-messaging");
+  const directMsgBtn = $("direct-message");
+  const connectBtn = $("auto-connect");
+  const stopBtn = $("stop-connections");
+  const viewLogBtn = $("view-log");
+  const readConvsBtn = $("read-conversations");
+  const followupsBtn = $("send-followups-messaging");
 
   // ---------- helpers ----------
   async function getCurrentTab() {
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function parseOnly2nd3rd(value = "") {
     const v = (value || "").toString().toLowerCase();
     const has23 = /(2|segundo).*(3|terceiro)|2\s*[-e/,]\s*3|2nd.*3rd/.test(v);
-    const has1  = /\b1\b|primeir/.test(v);
+    const has1 = /\b1\b|primeir/.test(v);
     return has23 && !has1;
   }
 
@@ -115,14 +115,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ---------- restaurar estado ----------
   chrome.storage.local.get(
-    ["progress","sendLimit","filterRole","filterLocation","localidadeNome","filtroConexao","skipIfSent"],
+    ["progress", "sendLimit", "filterRole", "filterLocation", "localidadeNome", "filtroConexao", "skipIfSent"],
     (data) => {
       updateProgress(data.progress ?? 0, data.sendLimit ?? 0);
-      if (filterRole)     filterRole.value     = data.filterRole || "";
+      if (filterRole) filterRole.value = data.filterRole || "";
       if (filterLocation) filterLocation.value = data.filterLocation || data.localidadeNome || "";
-      if (networkFilter)  networkFilter.value  = data.filtroConexao || "";
-      if (messageLimit)   messageLimit.value   = data.sendLimit || "";
-      if (skipIfSent)     skipIfSent.checked   = !!data.skipIfSent;
+      if (networkFilter) networkFilter.value = data.filtroConexao || "";
+      if (messageLimit) messageLimit.value = data.sendLimit || "";
+      if (skipIfSent) skipIfSent.checked = !!data.skipIfSent;
     }
   );
 
@@ -134,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const msg = changes.messagesSent?.newValue;
     const conn = changes.connectionsSent?.newValue;
     const progress = (typeof msg === "number") ? msg :
-                     (typeof conn === "number") ? conn : undefined;
+      (typeof conn === "number") ? conn : undefined;
 
     if (typeof progress === "number") {
       chrome.storage.local.set({ progress });
@@ -147,11 +147,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------- aplicar filtros ----------
   if (applyFiltersBtn) {
     applyFiltersBtn.addEventListener("click", async () => {
-      const role     = (filterRole?.value || "").trim();
+      const role = (filterRole?.value || "").trim();
       const location = (filterLocation?.value || "").trim();
-      const conexao  = (networkFilter?.value || "").trim();
-      const limit    = parseInt(messageLimit?.value || "0", 10) || 20;
-      const skip     = !!skipIfSent?.checked;
+      const conexao = (networkFilter?.value || "").trim();
+      const limit = parseInt(messageLimit?.value || "0", 10) || 20;
+      const skip = !!skipIfSent?.checked;
 
       await chrome.storage.local.set({
         filterRole: role,
@@ -173,7 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tab,
         "https://www.linkedin.com/search/results/people/",
         isPeopleSearchUrl,
-        [".reusable-search__entity-result-list",".search-results-container",".reusable-search__result-container","main","button"],
+        [".reusable-search__entity-result-list", ".search-results-container", ".reusable-search__result-container", "main", "button"],
         (readyTab) => {
           chrome.scripting.executeScript({ target: { tabId: readyTab.id }, files: ["content_aplicar_filtro.js"] });
         }
@@ -184,11 +184,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------- enviar mensagens com nota ----------
   if (directMsgBtn) {
     directMsgBtn.addEventListener("click", async () => {
-      const role          = (filterRole?.value || "").trim();
-      const location      = (filterLocation?.value || "").trim();
-      const conexao       = (networkFilter?.value || "").trim();
-      const limit         = parseInt(messageLimit?.value || "0", 10) || 20;
-      const skip          = !!skipIfSent?.checked;
+      const role = (filterRole?.value || "").trim();
+      const location = (filterLocation?.value || "").trim();
+      const conexao = (networkFilter?.value || "").trim();
+      const limit = parseInt(messageLimit?.value || "0", 10) || 20;
+      const skip = !!skipIfSent?.checked;
       const customMessage = document.getElementById("custom-message")?.value || "";
 
       await chrome.storage.local.set({
@@ -200,6 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
         sendLimit: limit,
         skipIfSent: skip,
         customMessage,
+        connectMessage: customMessage,
         progress: 0,
         shouldStop: false
       });
@@ -211,9 +212,9 @@ document.addEventListener("DOMContentLoaded", () => {
         tab,
         "https://www.linkedin.com/search/results/people/",
         isPeopleSearchUrl,
-        [".reusable-search__entity-result-list",".search-results-container",".reusable-search__result-container","main","button"],
+        [".reusable-search__entity-result-list", ".search-results-container", ".reusable-search__result-container", "main", "button"],
         (readyTab) => {
-          chrome.scripting.executeScript({ target: { tabId: readyTab.id }, files: ["content_send_with_note.js"] });
+          chrome.scripting.executeScript({ target: { tabId: readyTab.id }, files: ["content_connect_only.js"] });
         }
       );
     });
@@ -222,11 +223,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------- conectar sem nota ----------
   if (connectBtn) {
     connectBtn.addEventListener("click", async () => {
-      const role     = (filterRole?.value || "").trim();
+      const role = (filterRole?.value || "").trim();
       const location = (filterLocation?.value || "").trim();
-      const conexao  = (networkFilter?.value || "").trim();
-      const limit    = parseInt(messageLimit?.value || "0", 10) || 20;
-      const skip     = !!skipIfSent?.checked;
+      const conexao = (networkFilter?.value || "").trim();
+      const limit = parseInt(messageLimit?.value || "0", 10) || 20;
+      const skip = !!skipIfSent?.checked;
+      const customMessage = document.getElementById("custom-message")?.value || "";
 
       await chrome.storage.local.set({
         filterRole: role,
@@ -236,6 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
         only2nd3rd: parseOnly2nd3rd(conexao),
         sendLimit: limit,
         skipIfSent: skip,
+        connectMessage: customMessage,
         progress: 0,
         shouldStop: false
       });
@@ -247,7 +250,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tab,
         "https://www.linkedin.com/search/results/people/",
         isPeopleSearchUrl,
-        [".reusable-search__entity-result-list",".search-results-container",".reusable-search__result-container","main","button"],
+        [".reusable-search__entity-result-list", ".search-results-container", ".reusable-search__result-container", "main", "button"],
         (readyTab) => {
           chrome.scripting.executeScript({ target: { tabId: readyTab.id }, files: ["content_connect_only.js"] });
         }
@@ -283,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------- follow-ups (mensagem) ----------
   if (followupsBtn) {
     followupsBtn.addEventListener("click", async () => {
-      const limit         = parseInt(messageLimit?.value || "0", 10) || 10;
+      const limit = parseInt(messageLimit?.value || "0", 10) || 10;
       const customMessage = document.getElementById("custom-message")?.value || "";
 
       await chrome.storage.local.set({
@@ -305,7 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   // ---------- enviar 1 mensagem (Conexões) ----------
-  (function(){
+  (function () {
     const oneMsgBtn = $("btn-1-mensagem");
     if (!oneMsgBtn) return;
     if (oneMsgBtn.dataset.inited === "1") return;
@@ -324,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tab,
         "https://www.linkedin.com/mynetwork/invite-connect/connections/",
         isConnectionsUrl,
-        ["main","a[aria-label*='Mensagem']","button[aria-label*='Mensagem']"],
+        ["main", "a[aria-label*='Mensagem']", "button[aria-label*='Mensagem']"],
         async (readyTab) => {
           try {
             await chrome.scripting.executeScript({ target: { tabId: readyTab.id }, files: ["send_new_contacts.js"] });
@@ -336,6 +339,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                   console.warn("[PUC Angels] Função não encontrada (send_new_contacts.js não injetado).");
                 }
+                _
               }
             });
           } catch (e) {
