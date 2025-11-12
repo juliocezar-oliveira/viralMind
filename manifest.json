@@ -28,6 +28,17 @@
   "content_scripts": [
     {
       "matches": [
+        "https://www.linkedin.com/search/results/*",
+        "https://www.linkedin.com/sales/search/*"
+      ],
+      "js": [
+        "content.js",
+        "content_connect_only.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://www.linkedin.com/in/*"
       ],
       "js": [
@@ -42,6 +53,7 @@
         "content_collect_compose_links.js",
         "content_compose_action.js",
         "content_connect_only.js",
+        "content_send_with_note.js",
         "content_profile_connect.js"
       ],
       "matches": [
