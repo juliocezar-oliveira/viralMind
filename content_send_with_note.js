@@ -1,7 +1,8 @@
-// content_send_with_note.js (que é o seu content_connect_manager.js)
-// --- CORREÇÃO V5.1 ---
-// Remove o 'to' perdido na linha 512 que causou o erro de sintaxe.
-// A lógica do V5 (focada nos seletores do modal) está mantida.
+// content_connect_only.js E content_send_with_note.js
+// --- LÓGICA V8 (VISITAR TODOS OS PERFIS) ---
+// CORREÇÃO: A função 'getCardsNow' foi refeita usando a lógica do
+// Teste V3 (que encontrou 32 DIVs) e adiciona um filtro
+// para pegar apenas os cards "pais" (os mais externos).
 
 (() => {
   // === Ritmizador global (pacer) ===
@@ -163,33 +164,54 @@ function norm(s = "") {
 
   // ---------- DOM helpers ----------
 
+  // --- ⚠️ FUNÇÃO ATUALIZADA (getCardsNow - V8) ---
+  // Esta é a correção principal. Usa a lógica do Teste 3
+  // e filtra os resultados aninhados.
   function getCardsNow() {
-    const main = document.querySelector('main, [role="main"]');
-    const searchRoot = main ? main.querySelector('ul, .search-results-container') : document.body;
-  
-    const candidates = [...(searchRoot || document.body).querySelectorAll('li')];
-  
-    const cards = candidates.filter(li => 
-        li.offsetParent !== null && 
-        li.querySelector('a[href*="/in/"]') && 
-        (li.innerText || "").toLowerCase().includes('conectar') 
-    );
+    console.log("[VM] Executando getCardsNow (V8 - Filtro de DIVs aninhados)...");
 
-    if (cards.length) return cards;
+    // A lógica exata do Teste 3 que encontrou 32 resultados
+    const cardFilter = (div) => {
+      if (!div || div.offsetParent === null) return false; // Tem que estar visível
+      const txt = (div.innerText || "").toLowerCase();
+      // Verifica se tem um link de perfil *direto* dentro dele,
+      // mas não dentro de outro card aninhado.
+      const hasDirectProfileLink = [...div.children].some(child => 
+          (child.tagName === 'A' && child.href.includes('/in/')) || 
+          (child.querySelector('a[href*="/in/"]')) 
+      );
+      
+      return hasDirectProfileLink && // Tem link de perfil
+             (txt.includes("conectar") || txt.includes("seguir") || txt.includes("pendente")); // Tem texto de ação
+    };
 
-    const sels = [
-      "li.reusable-search__result-container",
-      "ul.reusable-search__entity-result-list li",
-      "div.search-results-container li",
-      "div.entity-result"
-    ];
-    for (const sel of sels) {
-      const list = [...document.querySelectorAll(sel)].filter(n => n.offsetParent !== null);
-      if (list.length) return list;
+    // 1. Encontra TODOS os divs que parecem um card (os 32)
+    const candidates = [...document.querySelectorAll('div')].filter(cardFilter);
+
+    if (candidates.length === 0) {
+        console.log("[VM] getCardsNow não encontrou NENHUM candidato a card.");
+        return [];
     }
-    
-    return [];
+
+    // 2. Filtra os cards "filhos" (aninhados)
+    // Um card é "raiz" (o que queremos) se nenhum dos seus pais também for um "candidato"
+    const finalCards = candidates.filter(card => {
+        let parent = card.parentElement;
+        while (parent && parent !== document.body) {
+            // Se o 'pai' também está na lista de candidatos, então 'card' é um filho.
+            if (candidates.includes(parent)) { 
+                return false; 
+            }
+            parent = parent.parentElement;
+        }
+        // Se chegamos aqui, nenhum pai estava na lista. Este é um card "raiz".
+        return true; 
+    });
+
+    console.log(`[VM] Encontrados ${candidates.length} candidatos, ${finalCards.length} cards "raiz" filtrados.`);
+    return finalCards;
   }
+
 
   async function waitForCards(timeoutMs = 10000) {
     const start = Date.now();
@@ -198,6 +220,7 @@ function norm(s = "") {
       if (cards.length) return cards;
       await delay(500);
     }
+    console.log("[VM] waitForCards atingiu timeout.");
     return getCardsNow(); 
   }
 
@@ -216,12 +239,16 @@ function norm(s = "") {
     const lines = (card?.innerText || "").split("\n").map(l => l.trim()).filter(Boolean);
     
     const a = card.querySelector('a[href*="/in/"]');
-    const nomeFromLink = (a?.innerText || "").trim().split('\n')[0];
+    // Tenta pegar o nome do link MAIS INTERNO
+    const profileLinks = [...card.querySelectorAll('a[href*="/in/"]')];
+    const innerMostLink = profileLinks[profileLinks.length - 1] || a;
+    
+    const nomeFromLink = (innerMostLink?.innerText || "").trim().split('\n')[0];
     const nome = nomeFromLink || lines[0] || "";
 
     let profileUrl = "";
-    if (a) {
-      let href = a.getAttribute("href") || a.href || "";
+    if (innerMostLink) {
+      let href = innerMostLink.getAttribute("href") || innerMostLink.href || "";
       try {
         const url = new URL(href, location.origin);
         profileUrl = url.origin + url.pathname;
@@ -262,24 +289,7 @@ function norm(s = "") {
 
   const getElementText = (el) => (el?.innerText || el?.textContent || "").trim().toLowerCase();
 
-  function findBtnConnectBranco(card) {
-    const candidates = [...card.querySelectorAll("button, span, div")]; 
-    return candidates.find(b => {
-      const txt = getElementText(b);
-      const isConnect = txt === "conectar" || txt === "connect";
-      return isConnect && b.querySelector('svg') && b.offsetParent !== null;
-    }) || null;
-  }
-
-  function findBtnConnectPreto(card) {
-    const candidates = [...card.querySelectorAll("button, span, div")]; 
-    return candidates.find(b => {
-      const txt = getElementText(b);
-      const isConnect = txt === "conectar" || txt === "connect";
-      return isConnect && !b.querySelector('svg') && b.offsetParent !== null;
-    }) || null;
-  }
-
+  // --- Funções de botão (apenas para filtragem) ---
   function findBtnMensagem(card) {
     const candidates = [...card.querySelectorAll("button, span, div")];
     return candidates.find(b => {
@@ -297,137 +307,7 @@ function norm(s = "") {
       return isPending && (disabled(b) || b.offsetParent !== null);
     }) || null;
   }
-
-  // --- ⚠️ FUNÇÃO ATUALIZADA (executarConexaoComNota - V5) ---
-  // Seletores do modal (pop-up) ficaram 100% robustos
-  async function executarConexaoComNota(cfg, info, btn) {
-    try {
-      btn.scrollIntoView({ behavior: "smooth", block: "center" });
-      await waitRandom(320, 1100);
-      btn.click();
-      
-      // Espera o modal (diálogo) aparecer
-      let modal;
-      const t0_modal = Date.now();
-      while (Date.now() - t0_modal < 5000) {
-        modal = document.querySelector('div[role="dialog"], .artdeco-modal');
-        if (modal && modal.offsetParent !== null) break;
-        await delay(100);
-      }
-
-      if (!modal) {
-        console.warn(`[VM] Modal de conexão não abriu para ${info.nome}.`);
-        return false;
-      }
-      
-      await waitRandom(500, 1000); // Espera o conteúdo do modal renderizar
-
-      // 1. Encontrar "Adicionar nota" (Robusto)
-      const addNoteBtn = [...modal.querySelectorAll('button')].find(b => {
-        const label = (b.getAttribute('aria-label') || b.innerText || "").toLowerCase();
-        return label.includes("adicionar nota") || label.includes("add a note");
-      });
-
-      if (!addNoteBtn) {
-        console.warn(`[VM] Modal sem 'Adicionar nota' para ${info.nome} — fechando e pulando.`);
-        const close = modal.querySelector('button[aria-label*="Fechar"], button[aria-label*="Dismiss"]');
-        if (close) close.click();
-        await delay(250);
-        return false; // Falhou
-      }
-
-      addNoteBtn.click();
-      await waitRandom(500, 1200);
-
-      // 2. Encontrar Campo de Texto (Robusto)
-      const textArea = modal.querySelector('textarea, div[role="textbox"]');
-      
-      // 3. Encontrar Botão "Enviar" (Robusto)
-      // Procura o botão "Enviar" (ou "Send") que esteja ativado
-      const sendBtn = await (async () => {
-        const t0_send = Date.now();
-        while(Date.now() - t0_send < 3000) {
-          const btn = [...modal.querySelectorAll('button')].find(b => {
-            const txt = getElementText(b);
-            return (txt.startsWith("enviar") || txt.startsWith("send")) && !disabled(b);
-          });
-          if (btn) return btn;
-          await delay(100);
-        }
-        return null;
-      })();
-
-      if (!textArea || !sendBtn) {
-        console.warn(`[VM] Não achou 'textArea' ou 'sendBtn' final para ${info.nome}. Fechando e pulando.`);
-        const close = modal.querySelector('button[aria-label*="Fechar"], button[aria-label*="Dismiss"]');
-        if (close) close.click();
-        await delay(250);
-        return false;
-      }
-
-      // 4. Preencher e Enviar
-      const primeiroNome = info.nome.split(' ')[0];
-      const mensagem = (cfg.connectMessage || "Olá {nome}, gostaria de me conectar.").replace(/{nome}/g, primeiroNome);
-
-      // Simula digitação humana para habilitar o botão "Enviar"
-      if (textArea.tagName === "TEXTAREA") {
-        textArea.value = mensagem;
-      } else {
-        // para <div> contenteditable
-        textArea.innerText = mensagem; 
-      }
-      // Dispara os eventos que o React escuta
-      textArea.dispatchEvent(new Event('input', { bubbles: true }));
-      textArea.dispatchEvent(new Event('change', { bubbles: true }));
-
-      await waitRandom(400, 900); // Pausa para o botão habilitar
-
-      // Re-checa o botão "Enviar" caso ele estivesse desabilitado
-      const finalSendBtn = disabled(sendBtn) ? 
-          [...modal.querySelectorAll('button')].find(b => {
-            const txt = getElementText(b);
-            return (txt.startsWith("enviar") || txt.startsWith("send")) && !disabled(b);
-          })
-          : sendBtn;
-
-      if (!finalSendBtn) {
-        console.warn(`[VM] Botão 'Enviar' não habilitou para ${info.nome}. Fechando.`);
-        const close = modal.querySelector('button[aria-label*="Fechar"], button[aria-label*="Dismiss"]');
-        if (close) close.click();
-        await delay(250);
-        return false;
-      }
-
-      finalSendBtn.click();
-      await waitRandom(900, 1800);
-      return true; // Sucesso
-    } catch (e) {
-      console.error(`[VM] Erro ao tentar conectar com ${info.nome}: ${e.message}`);
-      return false;
-    }
-  }
-
-  function logEnvio({ nome, cargo, localidade, profileUrl }) {
-    const handleFromUrl = (url="") => {
-      const m = String(url).match(/\/in\/([^/?#]+)/i);
-      return m ? decodeURIComponent(m[1]) : "";
-    };
-    const conta = handleFromUrl(profileUrl);
-  
-    chrome.storage.local.get("logs", (r) => {
-      const logs = r.logs || [];
-      logs.push({
-        nome,
-        cargo,
-        localidade,
-        tipo: "Conexão com nota",
-        data: new Date().toISOString(),
-        profileUrl, 
-        conta       
-      });
-      chrome.storage.local.set({ logs });
-    });
-  }  
+  // --- Fim das funções de botão ---
 
   function nextPageButton() {
     const aria = [
@@ -469,20 +349,20 @@ function norm(s = "") {
   }
 
   // ---------- Loop de envio (O COLETOR) ----------
-  async function enviarNaPagina(cfg, restante, roleKW, locKW, progressBase, cards) {
-    console.log(`[VM] Processando ${cards.length} cards. Restante no limite: ${restante}`);
-    let enviadosDireto = 0;
+  // Apenas coleta perfis para a fila
+  async function enviarNaPagina(cfg, roleKW, locKW, cards) {
+    console.log(`[VM] Escaneando ${cards.length} cards para a fila.`);
     let filaParaVisitar = [];
 
     for (const card of cards) {
       if (await shouldStop()) break;
-      if (enviadosDireto >= restante) break;
 
       const info = extractInfo(card);
+      
+      // 1. Filtro de Texto (Cargo/Local)
       if (!matchesText(info, roleKW, locKW)) continue;
 
-      const btnBranco = findBtnConnectBranco(card);
-      const btnPreto  = findBtnConnectPreto(card);
+      // 2. Filtro de Status (1º grau ou Pendente)
       const btnMsg    = findBtnMensagem(card);
       const btnPend   = findBtnPendente(card); 
 
@@ -491,48 +371,28 @@ function norm(s = "") {
           continue;
       }
       
-      if (btnPend || (cfg.skipIfSent && btnPreto && disabled(btnPreto))) {
+      if (cfg.skipIfSent && btnPend) {
             console.log(`[VM] Pulando ${info.nome} (Pendente ou já enviado).`);
             continue;
       }
 
-      if (btnBranco) {
-          console.log(`[VM] Processando ${info.nome} (Conexão Direta com nota)`);
-          
-          const sucesso = await executarConexaoComNota(cfg, info, btnBranco);
-          
-          if (sucesso) {
-              enviadosDireto += 1;
-              const totalEnviados = progressBase + enviadosDireto;
-              setProgress({ sent: totalEnviados, total: cfg.sendLimit, note: `Conexão com nota para ${info.nome}` });
-              logEnvio(info);
-              console.log(`[VM] ✅ Conexão COM nota enviada: ${info.nome} (${totalEnviados}/${cfg.sendLimit})`);
-              
-              // --- O TYPO ESTAVA AQUI ---
-              
-              if (window.__pacer?.between) { try { await window.__pacer.between('conectar'); } catch(e) {} }
-          }
-
-      } else if (btnPreto || (!btnBranco && !btnMsg && !btnPend)) { 
-          if (!info.profileUrl) {
+      // 3. Adicionar à Fila
+      if (!info.profileUrl) {
               console.warn(`[VM] Pulando ${info.nome}, não foi possível extrair URL do perfil para a fila.`);
-               continue;
-          }
-          
-          console.log(`[VM] Adicionando ${info.nome} à Fila de Visita (Botão Preto/Ausente)`);
-          filaParaVisitar.push({ 
-              url: info.profileUrl, 
-              nome: info.nome,
-type: 'VISITAR_PERFIL'
-          });
+              continue;
       }
-    }
+          
+      console.log(`[VM] Adicionando ${info.nome} à Fila de Visita.`);
+      filaParaVisitar.push({ 
+          url: info.profileUrl, 
+          nome: info.nome,
+          tipo: 'VISITAR_PERFIL'
+      });
+    } // Fim do loop 'for...of cards'
 
     if (filaParaVisitar.length > 0) {
       await adicionarTarefasNaFila(filaParaVisitar);
     }
-
-    return { enviadosDireto };
   }
 
   // ---------- MAIN (O ORQUESTRADOR) ----------
@@ -549,7 +409,6 @@ type: 'VISITAR_PERFIL'
 
     setProgress({ sent: total, total: cfg.sendLimit, note: "Iniciando Connect Manager" });
   
-    // "Memória" da página (para evitar o loop infinito)
     let processedSignatures = new Set();
   
     while (true) {
@@ -580,8 +439,8 @@ type: 'VISITAR_PERFIL'
           break; // Navegação vai parar o script
       
       } else {
-          // 2. FILA VAZIA. Processar a página de busca.
-          console.log("[VM] Fila de visitas vazia. Processando página de busca...");
+          // 2. FILA VAZIA. Escanear a página de busca para ENCHER A FILA.
+          console.log("[VM] Fila de visitas vazia. Escaneando página de busca...");
           
           const currentCards = await waitForCards(10000); 
           const currentSignature = getCardsSignature(currentCards);
@@ -596,16 +455,11 @@ type: 'VISITAR_PERFIL'
               break;
           }
           processedSignatures.add(currentSignature);
-           console.log(`[VM] Processando página com assinatura: ${currentSignature}`);
+           console.log(`[VM] Escaneando página com assinatura: ${currentSignature}`);
 
-          const { enviadosDireto } = await enviarNaPagina(cfg, restante, roleKW, locKW, total, currentCards); 
-          total += enviadosDireto;
+          await enviarNaPagina(cfg, roleKW, locKW, currentCards); 
 
           if (await shouldStop()) break;
-
-          if (enviadosDireto === 0 && currentCards.length > 0) {
-              console.log("[VM] Nenhum envio direto (mas cards foram processados/enfileirados). Tentando avançar página...");
-          }
 
           // 3. PAGINAÇÃO
           const next = nextPageButton();
@@ -618,7 +472,7 @@ type: 'VISITAR_PERFIL'
           next.scrollIntoView({ behavior: "smooth", block: "center" });
           await waitRandom(600, 1400);
           next.click();
-        s   
+          
           // 4. "ESPERA BURRA" (DUMB WAIT)
           console.log("[VM] Esperando 8 segundos para a próxima página carregar...");
           await waitRandom(7000, 9000); // Espera ~8 segundos
@@ -626,7 +480,7 @@ type: 'VISITAR_PERFIL'
     } // Fim do while(true)
 
     console.log(`[VM] Finalizado Connect Manager. Total final: ${total}.`);
-    setProgress({ sent: total, total: cfg.sendLimit, note: "Fim Connect Manager" });
+   setProgress({ sent: total, total: cfg.sendLimit, note: "Fim Connect Manager" });
     window.__VM.connectManagerRunning = false;
   })();
 })();

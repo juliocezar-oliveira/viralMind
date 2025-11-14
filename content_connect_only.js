@@ -1,9 +1,8 @@
-// content_connect_manager.js — Conectar COM nota (Modelo de Fila)
-// - Aguarda resultados (waitForCards)
-// - Filtra por cargo/localidade
-// - Processa conexões diretas (botão branco) COM nota
-// - Enfileira conexões de perfil (botão preto / sem botão) para visita
-// - Orquestra a fila e a paginação
+// content_connect_only.js E content_send_with_note.js
+// --- LÓGICA V8 (VISITAR TODOS OS PERFIS) ---
+// CORREÇÃO: A função 'getCardsNow' foi refeita usando a lógica do
+// Teste V3 (que encontrou 32 DIVs) e adiciona um filtro
+// para pegar apenas os cards "pais" (os mais externos).
 
 (() => {
   // === Ritmizador global (pacer) ===
@@ -91,7 +90,6 @@
 })();
 
   window.__VM = window.__VM || {};
-  // --- ALTERADO --- (Nome da flag)
   if (window.__VM.connectManagerRunning) { 
     console.log("[VM] content_connect_manager.js já em execução — abortando nova inicialização.");
     return;
@@ -101,7 +99,6 @@
   // ---------- Utils ----------
   const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // [INCLUSÃO] Humanização de ritmo / aleatoriedade
   function randInt(min, max){ min = Math.ceil(min); max = Math.floor(max); return Math.floor(Math.random()*(max-min+1))+min; }
   const waitRandom = async (minMs, maxMs) => { const ms = randInt(minMs, maxMs); return delay(ms); };
 function norm(s = "") {
@@ -115,7 +112,6 @@ function norm(s = "") {
   async function getCfg() {
     return new Promise((resolve) => {
       chrome.storage.local.get(
-        // --- ALTERADO --- (adicionado "connectMessage")
         ["shouldStop","filterLocation","localidadeNome","filterRole","skipIfSent","only2nd3rd","filtroConexao","sendLimit", "connectMessage"],
         (d) => {
           const loc = (d.filterLocation || d.localidadeNome || "").toString();
@@ -132,8 +128,7 @@ function norm(s = "") {
             skipIfSent: !!d.skipIfSent,
             only2nd3rd: typeof d.only2nd3rd === "boolean" ? d.only2nd3rd : parseOnly(d.filtroConexao),
             sendLimit: Number(d.sendLimit) > 0 ? Number(d.sendLimit) : 9999,
-            // --- NOVO --- (Mensagem padrão)
-            connectMessage: d.connectMessage || "Olá {nome}, vi seu perfil e gostaria de me conectar." 
+            connectMessage: d.connectMessage || "Olá {nome}, vi seu perfil e gostaria de me conectar." 
           });
         }
       );
@@ -150,89 +145,117 @@ function norm(s = "") {
     chrome.storage.local.set({ connectionsSent: sent, sendTotal: total, lastAction: note, progress: sent });
   }
 
-  // --- NOVO --- (Helpers da Fila de Tarefas)
-  const VM_QUEUE_KEY = "vm_connect_queue";
-  async function lerFilaDoStorage() {
-    return new Promise(r => chrome.storage.local.get(VM_QUEUE_KEY, d => r(d[VM_QUEUE_KEY] || [])));
-  }
-  async function salvarFilaDoStorage(fila) {
-    return new Promise(r => chrome.storage.local.set({ [VM_QUEUE_KEY]: fila }, r));
-  }
-  async function adicionarTarefasNaFila(tarefas) {
-    const fila = await lerFilaDoStorage();
-    const urlsNaFila = new Set(fila.map(t => t.url));
-    // Adiciona apenas tarefas que não estejam na fila
-    const novasTarefas = tarefas.filter(t => t.url && !urlsNaFila.has(t.url)); 
-    if (novasTarefas.length) {
-      console.log(`[VM] Adicionando ${novasTarefas.length} novas tarefas à fila.`);
-      await salvarFilaDoStorage([...fila, ...novasTarefas]);
-    }
-  }
-  // --- FIM NOVO ---
+  const VM_QUEUE_KEY = "vm_connect_queue";
+  async function lerFilaDoStorage() {
+    return new Promise(r => chrome.storage.local.get(VM_QUEUE_KEY, d => r(d[VM_QUEUE_KEY] || [])));
+  }
+  async function salvarFilaDoStorage(fila) {
+    return new Promise(r => chrome.storage.local.set({ [VM_QUEUE_KEY]: fila }, r));
+  }
+  async function adicionarTarefasNaFila(tarefas) {
+    const fila = await lerFilaDoStorage();
+    const urlsNaFila = new Set(fila.map(t => t.url));
+    const novasTarefas = tarefas.filter(t => t.url && !urlsNaFila.has(t.url)); 
+    if (novasTarefas.length) {
+      console.log(`[VM] Adicionando ${novasTarefas.length} novas tarefas à fila.`);
+      await salvarFilaDoStorage([...fila, ...novasTarefas]);
+    }
+  }
 
   // ---------- DOM helpers ----------
+
+  // --- ⚠️ FUNÇÃO ATUALIZADA (getCardsNow - V8) ---
+  // Esta é a correção principal. Usa a lógica do Teste 3
+  // e filtra os resultados aninhados.
   function getCardsNow() {
-    const sels = [
-      "li.reusable-search__result-container",
-      "ul.reusable-search__entity-result-list li",
-      "div.search-results-container li",
-      "div.entity-result"
-    ];
-    for (const sel of sels) {
-      const list = [...document.querySelectorAll(sel)].filter(n => n.offsetParent !== null);
-      if (list.length) return list;
-    }
-    return [];
-  }
+    console.log("[VM] Executando getCardsNow (V8 - Filtro de DIVs aninhados)...");
 
-  async function waitForCards(timeoutMs = 7000) {
-    const start = Date.now();
-    let cards = getCardsNow();
-    if (cards.length) return cards;
+    // A lógica exata do Teste 3 que encontrou 32 resultados
+    const cardFilter = (div) => {
+      if (!div || div.offsetParent === null) return false; // Tem que estar visível
+      const txt = (div.innerText || "").toLowerCase();
+      // Verifica se tem um link de perfil *direto* dentro dele,
+      // mas não dentro de outro card aninhado.
+      const hasDirectProfileLink = [...div.children].some(child => 
+          (child.tagName === 'A' && child.href.includes('/in/')) || 
+          (child.querySelector('a[href*="/in/"]')) 
+      );
+      
+      return hasDirectProfileLink && // Tem link de perfil
+             (txt.includes("conectar") || txt.includes("seguir") || txt.includes("pendente")); // Tem texto de ação
+    };
 
-    const container =
-      document.querySelector("div.search-results-container") ||
-      document.querySelector("main") || document.body;
+    // 1. Encontra TODOS os divs que parecem um card (os 32)
+    const candidates = [...document.querySelectorAll('div')].filter(cardFilter);
 
-    if (!container) {
-      await delay(500);
-      return getCardsNow();
+    if (candidates.length === 0) {
+        console.log("[VM] getCardsNow não encontrou NENHUM candidato a card.");
+        return [];
     }
 
-    let resolved = false;
-    const obs = new MutationObserver(() => {
-      if (resolved) return;
-      const found = getCardsNow();
-      if (found.length) {
-        resolved = true;
-        obs.disconnect();
-      }
+    // 2. Filtra os cards "filhos" (aninhados)
+    // Um card é "raiz" (o que queremos) se nenhum dos seus pais também for um "candidato"
+    const finalCards = candidates.filter(card => {
+        let parent = card.parentElement;
+        while (parent && parent !== document.body) {
+            // Se o 'pai' também está na lista de candidatos, então 'card' é um filho.
+            if (candidates.includes(parent)) { 
+                return false; 
+            }
+            parent = parent.parentElement;
+        }
+        // Se chegamos aqui, nenhum pai estava na lista. Este é um card "raiz".
+        return true; 
     });
-    obs.observe(container, { childList: true, subtree: true });
 
-    while (!resolved && Date.now() - start < timeoutMs) await delay(200);
-    obs.disconnect();
-    cards = getCardsNow();
-    return cards;
+    console.log(`[VM] Encontrados ${candidates.length} candidatos, ${finalCards.length} cards "raiz" filtrados.`);
+    return finalCards;
   }
+
+
+  async function waitForCards(timeoutMs = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const cards = getCardsNow();
+      if (cards.length) return cards;
+      await delay(500);
+    }
+    console.log("[VM] waitForCards atingiu timeout.");
+    return getCardsNow(); 
+  }
+
+  function getCardsSignature(cards) {
+    if (!cards || !cards.length) return "EMPTY";
+    const signature = cards.slice(0, 3).map(c => {
+      const a = c.querySelector('a[href*="/in/"]');
+      return a ? a.href : 'no-href';
+    }).join('|');
+    return signature;
+  }
+
 
   function extractInfo(card) {
     const txt = (card?.innerText || "").replace(/\s+/g, " ").trim();
     const lines = (card?.innerText || "").split("\n").map(l => l.trim()).filter(Boolean);
-    const nome = lines[0] || "";
+    
+    const a = card.querySelector('a[href*="/in/"]');
+    // Tenta pegar o nome do link MAIS INTERNO
+    const profileLinks = [...card.querySelectorAll('a[href*="/in/"]')];
+    const innerMostLink = profileLinks[profileLinks.length - 1] || a;
+    
+    const nomeFromLink = (innerMostLink?.innerText || "").trim().split('\n')[0];
+    const nome = nomeFromLink || lines[0] || "";
 
-      // 🔽 NOVO: pegar link do perfil
-  const a = card.querySelector('a[href*="/in/"]');
-  let profileUrl = "";
-  if (a) {
-    let href = a.getAttribute("href") || a.href || "";
-    try {
-      const url = new URL(href, location.origin);
-      profileUrl = url.origin + url.pathname; // remove query params
-    } catch {
-      profileUrl = href;
+    let profileUrl = "";
+    if (innerMostLink) {
+      let href = innerMostLink.getAttribute("href") || innerMostLink.href || "";
+      try {
+        const url = new URL(href, location.origin);
+        profileUrl = url.origin + url.pathname;
+      } catch {
+        profileUrl = href;
+      }
     }
-  }
 
     let cargo = "";
     const idxConn = lines.findIndex(l => /conex(ão|ao)|conectar/i.test(l));
@@ -250,8 +273,7 @@ function norm(s = "") {
     const grauMatch = txt.match(/\b([123])º\b/);
     const grau = grauMatch ? Number(grauMatch[1]) : null;
 
-    return { nome, cargo, localidade, grau, plain: txt, profileUrl // 🔽 NOVO
-  };
+    return { nome, cargo, localidade, grau, plain: txt, profileUrl };
   }
 
   function matchesText(info, roleKW, locKW) {
@@ -261,148 +283,32 @@ function norm(s = "") {
     return true;
   }
 
-  // --- REMOVIDO --- (Antiga btnConnect)
-  // function btnConnect(card) { ... }
-
-  // --- NOVO --- (Funções de detecção de botão)
-  /**
-  * Encontra o botão "Conectar" Padrão (Branco, com ícone), 
-  * que abre o modal para enviar com nota.
-  */
-  function findBtnConnectBranco(card) {
-    const btns = [...card.querySelectorAll("button")];
-    const label = (b) => (b.innerText || "").trim().toLowerCase();
-    
-    return btns.find(b => 
-      /conectar|connect/i.test(label(b)) && // 1. Tem o texto "Conectar"
-      b.querySelector('svg')                 // 2. E TEM um SVG (ícone)
-    ) || null;
-  }
-
-  /**
-  * Encontra o botão "Conectar" Preto (Pill, sem ícone),
-  * que NÃO abre o modal de nota.
-  */
-  function findBtnConnectPreto(card) {
-    const btns = [...card.querySelectorAll("button")];
-    const label = (b) => (b.innerText || "").trim().toLowerCase();
-    
-    return btns.find(b => 
-      /conectar|connect/i.test(label(b)) && // 1. Tem o texto "Conectar"
-      !b.querySelector('svg')                // 2. E NÃO TEM um SVG
-    ) || null;
-  }
-
-  /** Encontra o botão "Mensagem" (para pular 1º grau) */
-  function findBtnMensagem(card) {
-      const btns = [...card.querySelectorAll("button")];
-      const label = (b) => (b.innerText || "").trim().toLowerCase();
-      return btns.find(b => /mensagem|message/i.test(label(b))) || null;
-  }
-
-  /** Encontra o botão "Pendente" (para pular já enviado) */
-  function findBtnPendente(card) {
-      const btns = [...card.querySelectorAll("button")];
-      const label = (b) => (b.innerText || "").trim().toLowerCase();
-      // O botão "Pendente" é desabilitado
-      return btns.find(b => /pendente|pending/i.test(label(b)) && disabled(b)) || null;
-  }
-  // --- FIM NOVO ---
-
   function disabled(btn) {
     return btn?.disabled || btn?.getAttribute("aria-disabled") === "true";
   }
 
-  // --- REMOVIDO --- (Antiga waitBtnEnviarSemNota)
-  // async function waitBtnEnviarSemNota() { ... }
+  const getElementText = (el) => (el?.innerText || el?.textContent || "").trim().toLowerCase();
 
-  // --- NOVO --- (Função de Ação para Envio Direto com Nota)
-  async function executarConexaoComNota(cfg, info, btn) {
-    try {
-      btn.scrollIntoView({ behavior: "smooth", block: "center" });
-      await waitRandom(320, 1100);
-      btn.click();
-      await waitRandom(800, 1600);
+  // --- Funções de botão (apenas para filtragem) ---
+  function findBtnMensagem(card) {
+    const candidates = [...card.querySelectorAll("button, span, div")];
+    return candidates.find(b => {
+      const txt = getElementText(b);
+      const isMessage = txt === "mensagem" || txt === "message";
+      return isMessage && b.offsetParent !== null;
+    }) || null;
+  }
 
-      // Tenta achar o botão "Adicionar nota"
-      const addNoteBtn = await (async () => {
-        for (let i = 0; i < 40; i++) {
-          // Seletor pode precisar de ajuste
-          const btn = document.querySelector('button[aria-label*="Adicionar nota"]');
-          if (btn) return btn;
-          await delay(150);
-        }
-        return null;
-      })();
+  function findBtnPendente(card) {
+    const candidates = [...card.querySelectorAll("button, span, div")];
+    return candidates.find(b => {
+      const txt = getElementText(b);
+      const isPending = txt === "pendente" || txt === "pending";
+      return isPending && (disabled(b) || b.offsetParent !== null);
+    }) || null;
+  }
+  // --- Fim das funções de botão ---
 
-      if (!addNoteBtn) {
-        console.warn(`[VM] Modal sem 'Adicionar nota' para ${info.nome} — fechando e pulando.`);
-        const close = document.querySelector('button[aria-label="Fechar"]') || [...document.querySelectorAll("button")].find(b => (b.innerText || "").trim().toLowerCase() === "fechar");
-        if (close) close.click();
-        await delay(250);
-        return false; // Falhou
-      }
-
-      // Achou! Clica para abrir a caixa de mensagem.
-      addNoteBtn.click();
-      await waitRandom(500, 1200);
-
-      // Procura a caixa de texto e o botão final de Enviar
-      // (Estes seletores são do LinkedIn, podem precisar de ajuste)
-      const textArea = document.querySelector('textarea.connect-button-send-invite__custom-message'); 
-      const sendBtn = document.querySelector('button[aria-label="Enviar convite"]'); 
-
-      if (!textArea || !sendBtn) {
-        console.warn(`[VM] Não achou 'textArea' ou 'sendBtn' final para ${info.nome}. Fechando e pulando.`);
-        const close = document.querySelector('button[aria-label="Fechar"]');
-        if (close) close.click();
-        await delay(250);
-        return false; // Falhou
-      }
-
-      // Preenche a mensagem
-      const primeiroNome = info.nome.split(' ')[0]; // Pega só o primeiro nome
-      const mensagem = (cfg.connectMessage || "Olá {nome}, gostaria de me conectar.").replace(/{nome}/g, primeiroNome);
-
-      textArea.value = mensagem;
-      textArea.dispatchEvent(new Event('input', { bubbles: true })); // Simula digitação
-      await waitRandom(400, 900);
-
-      // Envia!
-      sendBtn.click();
-      await waitRandom(900, 1800);
-      return true; // Sucesso
-    } catch (e) {
-      console.error(`[VM] Erro ao tentar conectar com ${info.nome}: ${e.message}`);
-      return false; // Falhou
-    }
-  }
-  // --- FIM NOVO ---
-
-  function logEnvio({ nome, cargo, localidade, profileUrl }) {
-    const handleFromUrl = (url="") => {
-      const m = String(url).match(/\/in\/([^/?#]+)/i);
-      return m ? decodeURIComponent(m[1]) : "";
-    };
-    const conta = handleFromUrl(profileUrl);
-  
-    chrome.storage.local.get("logs", (r) => {
-      const logs = r.logs || [];
-      logs.push({
-        nome,
-        cargo,
-        localidade,
-        // --- ALTERADO --- (Tipo agora é sempre 'com nota')
-        tipo: "Conexão com nota",
-        data: new Date().toISOString(),
-        profileUrl, 
-        conta       
-      });
-      chrome.storage.local.set({ logs });
-    });
-  }  
-
-  // Paginação e scroll
   function nextPageButton() {
     const aria = [
       'button[aria-label="Avançar"]',
@@ -431,104 +337,66 @@ function norm(s = "") {
     return after > before;
   }
 
-  // --- NOVO --- (Função de navegação para o perfil)
-  async function executarVisita(tarefa) {
-      console.log(`[VM] Navegando para o perfil de: ${tarefa.nome}`);
-      // 1. Salva de onde viemos e a tarefa
-      await chrome.storage.local.set({ 
-          paginaDeOrigem: window.location.href,
-          tarefaAtual: tarefa
-      });
-      
-      // 2. Navega para o perfil
-      await waitRandom(1000, 2000);
-      window.location.href = tarefa.url;
-      // O SCRIPT VAI PARAR AQUI
-  }
-  // --- FIM NOVO ---
+  async function executarVisita(tarefa) {
+      console.log(`[VM] Navegando para o perfil de: ${tarefa.nome}`);
+      await chrome.storage.local.set({ 
+          paginaDeOrigem: window.location.href,
+          tarefaAtual: tarefa
+      });
+      
+      await waitRandom(1000, 2000);
+      window.location.href = tarefa.url;
+  }
 
   // ---------- Loop de envio (O COLETOR) ----------
-  // --- ALTERADO --- (Função totalmente reescrita)
-  async function enviarNaPagina(cfg, restante, roleKW, locKW, progressBase) {
-    const cards = await waitForCards();
-    console.log(`[VM] Cards visíveis: ${cards.length}. Restante: ${restante}`);
-    let enviadosDireto = 0; // Envios feitos nesta página
-    let filaParaVisitar = []; // Perfis para visitar depois
+  // Apenas coleta perfis para a fila
+  async function enviarNaPagina(cfg, roleKW, locKW, cards) {
+    console.log(`[VM] Escaneando ${cards.length} cards para a fila.`);
+    let filaParaVisitar = [];
 
     for (const card of cards) {
       if (await shouldStop()) break;
-      if (enviadosDireto >= restante) break; // Só conta envios diretos no 'restante' da página
 
       const info = extractInfo(card);
+      
+      // 1. Filtro de Texto (Cargo/Local)
       if (!matchesText(info, roleKW, locKW)) continue;
 
-      // --- Nova Lógica de Decisão ---
-      const btnBranco = findBtnConnectBranco(card);
-      const btnPreto  = findBtnConnectPreto(card);
-      const btnMsg    = findBtnMensagem(card);
-      const btnPend   = findBtnPendente(card); // Já checa 'disabled'
+      // 2. Filtro de Status (1º grau ou Pendente)
+      const btnMsg    = findBtnMensagem(card);
+      const btnPend   = findBtnPendente(card); 
 
-      // Heurística 2º/3º: Se pediu only2nd3rd e o botão for "Mensagem"
-      if (cfg.only2nd3rd && btnMsg) {
-          console.log(`[VM] Pulando ${info.nome} (1º grau)`);
-          continue;
-      }
-      
-      // Pular se já enviado (Pendente) ou se a config 'skipIfSent' estiver ativa
-      // Checa se o 'btnPreto' está desabilitado (Pendente)
-      if (btnPend || (cfg.skipIfSent && btnPreto && disabled(btnPreto))) {
-            console.log(`[VM] Pulando ${info.nome} (Pendente ou já enviado).`);
-            continue;
-      }
+      if (cfg.only2nd3rd && btnMsg) {
+          console.log(`[VM] Pulando ${info.nome} (1º grau)`);
+          continue;
+      }
+      
+      if (cfg.skipIfSent && btnPend) {
+            console.log(`[VM] Pulando ${info.nome} (Pendente ou já enviado).`);
+            continue;
+      }
 
-      // --- Classificação de Ação ---
-      if (btnBranco) {
-          // CENÁRIO 1: Processamento Rápido (Botão Branco)
-          console.log(`[VM] Processando ${info.nome} (Conexão Direta com nota)`);
-          
-          const sucesso = await executarConexaoComNota(cfg, info, btnBranco);
-          
-          if (sucesso) {
-              enviadosDireto += 1;
-              const totalEnviados = progressBase + enviadosDireto; // O 'total' só reflete envios diretos por enquanto
-              setProgress({ sent: totalEnviados, total: cfg.sendLimit, note: `Conexão com nota para ${info.nome}` });
-              logEnvio(info); // logEnvio agora sempre loga 'Conexão com nota'
-              console.log(`[VM] ✅ Conexão COM nota enviada: ${info.nome} (${totalEnviados}/${cfg.sendLimit})`);
-              
-              // +PACER (Conectar)
-              if (window.__pacer?.between) { try { await window.__pacer.between('conectar'); } catch(e) {} }
-          }
-          // Se 'sucesso' for false, a função executarConexaoComNota já tratou o erro e pulou.
-
-      } else if (btnPreto || (!btnBranco && !btnMsg && !btnPend)) { 
-          // CENÁRIO 2 e 3: Processamento em Fila 
-          // (Botão Preto) OU (Sem botão Branco E Sem ser 1o grau E Sem ser pendente)
-          if (!info.profileUrl) {
-              console.warn(`[VM] Pulando ${info.nome}, não foi possível extrair URL do perfil para a fila.`);
-              continue;
-          }
-          
-          console.log(`[VM] Adicionando ${info.nome} à Fila de Visita (Botão Preto/Ausente)`);
-          filaParaVisitar.push({ 
-              url: info.profileUrl, 
-              nome: info.nome,
-              tipo: 'VISITAR_PERFIL'
-          });
-      }
+      // 3. Adicionar à Fila
+      if (!info.profileUrl) {
+              console.warn(`[VM] Pulando ${info.nome}, não foi possível extrair URL do perfil para a fila.`);
+              continue;
+      }
+          
+      console.log(`[VM] Adicionando ${info.nome} à Fila de Visita.`);
+      filaParaVisitar.push({ 
+          url: info.profileUrl, 
+          nome: info.nome,
+          tipo: 'VISITAR_PERFIL'
+      });
     } // Fim do loop 'for...of cards'
 
-    // Adiciona todos os perfis coletados para a fila de uma vez
-    if (filaParaVisitar.length > 0) {
-      await adicionarTarefasNaFila(filaParaVisitar);
-    }
-
-    return enviadosDireto; // Retorna apenas os envios feitos DIRETAMENTE nesta página
+    if (filaParaVisitar.length > 0) {
+      await adicionarTarefasNaFila(filaParaVisitar);
+    }
   }
 
   // ---------- MAIN (O ORQUESTRADOR) ----------
-  // --- ALTERADO --- (Função totalmente reescrita)
   (async () => {
-    // PATCH: sempre começar destravado
     await new Promise(r => chrome.storage.local.set({ shouldStop: false }, r));
 
     const cfg = await getCfg();
@@ -536,81 +404,83 @@ function norm(s = "") {
     const locKW  = norm(cfg.filterLocation);
     console.log("[VM] Config (Connect Manager):", cfg);
 
-    // Nota: 'total' agora é lido do storage, pois o script de perfil também o incrementa
-    const { connectionsSent: totalInicial } = await new Promise(r => chrome.storage.local.get('connectionsSent', r));
-    let total = totalInicial || 0;
+    const { connectionsSent: totalInicial } = await new Promise(r => chrome.storage.local.get('connectionsSent', r));
+    let total = totalInicial || 0;
 
     setProgress({ sent: total, total: cfg.sendLimit, note: "Iniciando Connect Manager" });
-
+  
+    let processedSignatures = new Set();
+  
     while (true) {
       if (await shouldStop()) {
-        console.log("[VM] Parada solicitada pelo usuário.");
-        break;
-      }
+        console.log("[VM] Parada solicitada pelo usuário.");
+        break;
+      }
 
-      // Atualiza o total a cada loop, caso o script de perfil tenha rodado
-      const { connectionsSent: totalAtualizado } = await new Promise(r => chrome.storage.local.get('connectionsSent', r));
-      total = totalAtualizado || total;
+      const { connectionsSent: totalAtualizado } = await new Promise(r => chrome.storage.local.get('connectionsSent', r));
+      total = totalAtualizado || total;
 
       const restante = Math.max(0, cfg.sendLimit - total);
       if (restante === 0) {
-        console.log("[VM] Limite de envios atingido.");
-        break;
-      }
+        console.log("[VM] Limite de envios atingido.");
+        break;
+      }
 
-      // 1. VERIFICAR A FILA PRIMEIRO
-      const fila = await lerFilaDoStorage();
+      // 1. VERIFICAR A FILA PRIMEIRO
+      const fila = await lerFilaDoStorage();
 
-      if (fila.length > 0) {
-          // TEMOS TAREFAS DE VISITA!
-          const tarefa = fila.shift(); // Pega a primeira
-          await salvarFilaDoStorage(fila); // Salva a fila sem ela
+      if (fila.length > 0) {
+          const tarefa = fila.shift(); 
+          await salvarFilaDoStorage(fila); 
 
-          console.log(`[VM] Iniciando tarefa de visita: ${tarefa.nome}. ${fila.length} tarefas restantes na fila.`);
-          
-          // Esta função NAVEGA e o script para.
-          await executarVisita(tarefa); 
-          
-          // O script morre aqui, então o 'break' é para o loop do navegador
-          break; 
-      
-      } else {
-          // 2. FILA VAZIA. Processar a página de busca.
-          console.log("[VM] Fila de visitas vazia. Processando página de busca...");
-          // Passamos o 'total' atual para o progressBase
-          const enviadosNaPagina = await enviarNaPagina(cfg, restante, roleKW, locKW, total); 
-          total += enviadosNaPagina; // Atualiza o total com os envios diretos
+          console.log(`[VM] Iniciando tarefa de visita: ${tarefa.nome}. ${fila.length} tarefas restantes na fila.`);
+          
+          await executarVisita(tarefa); 
+          break; // Navegação vai parar o script
+      
+      } else {
+          // 2. FILA VAZIA. Escanear a página de busca para ENCHER A FILA.
+          console.log("[VM] Fila de visitas vazia. Escaneando página de busca...");
+          
+          const currentCards = await waitForCards(10000); 
+          const currentSignature = getCardsSignature(currentCards);
 
-          if (await shouldStop()) break;
+          if (currentCards.length === 0) {
+              console.log("[VM] Nenhum card encontrado na página. Encerrando.");
+              break;
+          }
 
-          // Se não enviou nada e a fila continua vazia, tenta paginar
-          if (enviadosNaPagina === 0) {
-              console.log("[VM] Nenhum envio direto e fila vazia. Tentando avançar página...");
-          }
+          if (processedSignatures.has(currentSignature)) {
+              console.warn(`[VM] PÁGINA REPETIDA DETECTADA (Assinatura: ${currentSignature}). A páginação falhou. Encerrando.`);
+              break;
+          }
+          processedSignatures.add(currentSignature);
+           console.log(`[VM] Escaneando página com assinatura: ${currentSignature}`);
 
-          // 3. PAGINAÇÃO (Lógica antiga)
-          const next = nextPageButton();
-          if (!next) {
-              // tenta carregar mais via scroll infinito
-              const grew = await tryInfiniteScrollBatch();
-              if (grew) {
-                console.log("[VM] Carregados mais resultados via scroll — nova varredura.");
-                continue; // reprocessa a página com novos cards
-              }
-              console.log("[VM] Fila vazia e sem próxima página. Encerrando.");
-              break; // Fim
-          }
-          
-          console.log("[VM] Avançando para próxima página...");
-          next.scrollIntoView({ behavior: "smooth", block: "center" });
-          await waitRandom(600, 1400);
-          next.click();
-          await waitRandom(3100, 5200);
-      }
-    } // Fim do loop 'while(true)'
+          await enviarNaPagina(cfg, roleKW, locKW, currentCards); 
+
+          if (await shouldStop()) break;
+
+          // 3. PAGINAÇÃO
+          const next = nextPageButton();
+          if (!next) {
+              console.log("[VM] Fila vazia e sem próxima página. Encerrando.");
+              break; // Fim
+          }
+          
+          console.log("[VM] Avançando para próxima página...");
+          next.scrollIntoView({ behavior: "smooth", block: "center" });
+          await waitRandom(600, 1400);
+          next.click();
+          
+          // 4. "ESPERA BURRA" (DUMB WAIT)
+          console.log("[VM] Esperando 8 segundos para a próxima página carregar...");
+          await waitRandom(7000, 9000); // Espera ~8 segundos
+      }
+    } // Fim do while(true)
 
     console.log(`[VM] Finalizado Connect Manager. Total final: ${total}.`);
-    setProgress({ sent: total, total: cfg.sendLimit, note: "Fim Connect Manager" });
+   setProgress({ sent: total, total: cfg.sendLimit, note: "Fim Connect Manager" });
     window.__VM.connectManagerRunning = false;
   })();
 })();
