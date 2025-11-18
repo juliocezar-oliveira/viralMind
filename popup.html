@@ -183,11 +183,9 @@
           Follow-ups (Mensagens)
         </button>
 
-        <!-- helper invisível para compat com handler legado do popup.js -->
         <button id="seu-botao-id" class="btn" style="display:none" aria-hidden="true" tabindex="-1">helper</button>
 
-        <!-- BOTÃO RESTAURADO: Primeira Mensagem (id mantido) -->
-        <button id="btn-1-mensagem" class="btn" title="Primeira Mensagem (Conexões) — abre modal e envia se não houver histórico" aria-label="Primeira Mensagem">
+        <button id="btn-1-mensagem" class="btn" title="Primeira Mensagem (Conexões)" aria-label="Primeira Mensagem">
           <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
           Primeira Mensagem
         </button>
@@ -200,6 +198,11 @@
         <button id="open-like-popup" class="btn" title="Atalho: curtir publicações" aria-label="Curtir publicações">
           <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1.01 4.22 2.59C11.09 5.01 12.76 4 14.5 4 17 4 19 6 19 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
           Curtir publicações
+        </button>
+
+        <button id="btn-reset-memory" class="btn btn--danger" title="Limpa histórico de visitados" aria-label="Limpar Histórico">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          Limpar Histórico
         </button>
       </div>
       <p class="hint" style="margin-top:var(--space-2)">Dica: deixe o mouse fora da janela para evitar interferência em cliques automáticos.</p>
@@ -216,7 +219,6 @@
     <div class="toasts" aria-live="polite" aria-atomic="true" id="toast-container"></div>
   </div>
 
-  <!-- Sem inline scripts (CSP) -->
   <script src="popup.js" defer></script>
   <script src="followups_runner.js" defer></script>
   <script src="open_like_button.js" defer></script>

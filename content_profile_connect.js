@@ -1,345 +1,174 @@
-// content_profile_connect.js — "O Trabalhador" (V16 - Limpo)
-// CORREÇÃO: Pausas 'waitRandom' substituídas por 'smartWait'
-// 			para que o botão "Parar" funcione instantaneamente.
+// content_profile_connect.js — V16 (Raio-X / Prioridade Visual)
+// Correção: Identifica o botão azul "Conectar" explícito antes de tentar menus.
 
 (() => {
-  // === Ritmizador global (pacer) ===
-  (() => {
-    if (window.__pacer) return;
-    const delay = (ms) => new Promise(r => setTimeout(r, ms));
-    const rint = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+    // Evita múltiplas instâncias
+    if (window.__VM_PROFILE_RUNNING) return;
+    window.__VM_PROFILE_RUNNING = true;
 
-    const CFG = {
-      ranges: {
-        conectar: [18000, 33000],
-        mensagens: [22000, 45000],
-        primeira: [20000, 40000],
-        followups: [12000, 28000]
-      },
-      longEvery: {
-        conectar: [7, 11],
-        mensagens: [5, 9],
-        primeira: [6, 10],
-        followups: [10, 15]
-      },
-      longPauseMs: {
-        conectar: [120000, 240000],
-        mensagens: [180000, 300000],
-        primeira: [120000, 240000],
-        followups: [90000, 180000]
-      }
-    };
+    console.log("[VM] Profile Connect V16 (Raio-X) INICIADO.");
 
-    let stopFlag = false;
-    try {
-      chrome.storage?.local?.get?.(['shouldStop', 'pacerConfig'], (d) => {
-        stopFlag = !!d?.shouldStop;
-        if (d?.pacerConfig && typeof d.pacerConfig === 'object') applyConfig(d.pacerConfig);
-      });
-      chrome.storage?.onChanged?.addListener?.((changes, area) => {
-        if (area !== 'local') return;
-        if (changes?.shouldStop) stopFlag = !!changes.shouldStop.newValue;
-        if (changes?.pacerConfig?.newValue) applyConfig(changes.pacerConfig.newValue);
-      });
-    } catch { }
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-    const counters = { conectar: 0, mensagens: 0, primeira: 0, followups: 0 };
-    const nextLong = {};
+    // --- FUNÇÃO DE RETORNO (CRUCIAL PARA O LOOP) ---
+    async function cleanupAndReturn(url) {
+        console.log(`[VM] 🔙 Voltando para busca...`);
+        // Remove a tarefa atual para liberar o Gerente
+        await chrome.storage.local.remove(['tarefaAtual']);
+        await delay(1000);
+        
+        // Se a URL de origem for válida, volta. Se não, volta para busca padrão.
+        if (url && url.includes("linkedin.com")) {
+            window.location.href = url;
+        } else {
+            window.location.href = "https://www.linkedin.com/search/results/people/";
+        }
+    }
 
-    function applyConfig(conf) {
-      const merge = (t, s) => { for (const k in s) { if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k])) merge(t[k] = t[k] || {}, s[k]); else t[k] = s[k]; } };
-      merge(CFG, conf || {});
-    }
+    // --- CAÇADOR DE BOTÕES ---
+    function findConnectButton() {
+        // Coleta todos os botões visíveis na página
+        const buttons = Array.from(document.querySelectorAll('button, a.artdeco-button, span.artdeco-button__text'));
+        
+        // 1. PRIORIDADE: Botão Azul Primário com texto "Conectar" (Caso da Paola)
+        const primary = buttons.find(b => {
+            const text = (b.innerText || "").trim().toLowerCase();
+            const isConnect = text === 'conectar' || text === 'connect';
+            // Verifica se é visível
+            return isConnect && b.offsetParent !== null;
+        });
 
-    async function cancellableWait(ms) {
-      const t0 = Date.now();
-      while (Date.now() - t0 < ms) {
-        if (stopFlag) throw new Error('STOP_REQUESTED');
-        await delay(Math.min(250, ms - (Date.now() - t0)));
-      }
-    }
+        if (primary) {
+            console.log("[VM] Botão Primário encontrado!");
+            return primary;
+        }
 
-  	function needLongPause(tipo) {
-      counters[tipo] = (counters[tipo] || 0) + 1;
-      const [a, b] = CFG.longEvery[tipo] || [999, 999];
-      if (!nextLong[tipo]) nextLong[tipo] = rint(a, b);
-      if (counters[tipo] >= nextLong[tipo]) {
-        counters[tipo] = 0;
-        nextLong[tipo] = rint(a, b);
-        return true;
-      }
-      return false;
-    }
+        // 2. PRIORIDADE: Botão Branco/Secundário ou Aria-Label
+        const secondary = buttons.find(b => {
+            const text = (b.innerText || "").trim().toLowerCase();
+            const label = (b.getAttribute('aria-label') || "").toLowerCase();
+            
+            // Procura "Conectar" no texto ou "Convidar Fulano para se conectar" no label
+            const isConnectText = text === 'conectar' || text === 'connect';
+            const isConnectLabel = label.includes('conectar') || label.includes('invite') && label.includes('connect');
+            
+            // EXCLUI botões de mensagem/share
+            const isWrong = text.includes('mensagem') || text.includes('message') || label.includes('message');
 
-    async function between(tipo) {
-      const [minB, maxB] = CFG.ranges[tipo] || [15000, 30000];
-      const base = rint(minB, maxB) + rint(120, 800);
-      await cancellableWait(base);
-      if (needLongPause(tipo)) {
-      	const [minL, maxL] = CFG.longPauseMs[tipo] || [60000, 120000];
-      	await cancellableWait(rint(minL, maxL));
-      }
-    }
-    window.__pacer = { between, configure: applyConfig, _cfg: CFG };
-  })();
-  // === Fim do Pacer ===
+            return (isConnectText || isConnectLabel) && !isWrong && b.offsetParent !== null;
+        });
 
+        return secondary;
+    }
 
-  window.__VM = window.__VM || {};
-  if (window.__VM.profileConnectRunning) {
-    console.log("[VM] content_profile_connect.js já em execução.");
-    return;
-  }
-  window.__VM.profileConnectRunning = true;
-  console.log("[VM] content_profile_connect.js INICIADO.");
+    // --- EXECUÇÃO ---
+    (async () => {
+        // Variável para garantir que temos para onde voltar em caso de erro
+        let returnUrl = "https://www.linkedin.com/search/results/people/";
 
-  // ---------- Utils ----------
-  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
-  function randInt(min, max) { min = Math.ceil(min); max = Math.floor(max); return Math.floor(Math.random() * (max - min + 1)) + min; }
+        try {
+            const data = await new Promise(r => chrome.storage.local.get(['tarefaAtual', 'paginaDeOrigem', 'connectMessage'], r));
+            const { tarefaAtual, paginaDeOrigem, connectMessage } = data;
+            
+            if (paginaDeOrigem) returnUrl = paginaDeOrigem;
 
-  async function shouldStop() {
-    return new Promise((resolve) => {
-      try {
-        	chrome.storage.local.get("shouldStop", (d) => resolve(!!d.shouldStop));
-      } catch (e) {
-        	resolve(false);
-      }
-    });
-  }
+            // Validação de segurança
+            if (!tarefaAtual || tarefaAtual.tipo !== 'VISITAR_PERFIL') {
+                console.log("[VM] Sem tarefa de perfil. Ocioso.");
+                return;
+            }
 
-  // --- NOVA FUNÇÃO ---
-  // Pausa "Inteligente" que pode ser interrompida pelo botão "Parar"
-  async function smartWait(minMs, maxMs = null) {
-    	let ms = maxMs ? randInt(minMs, maxMs) : minMs;
-    	const t0 = Date.now();
-    	while (Date.now() - t0 < ms) {
-    		if (await shouldStop()) throw new Error('STOP_REQUESTED');
-    		await delay(Math.min(250, ms - (Date.now() - t0)));
-    	}
-  }
+            console.log(`[VM] 👤 Analisando perfil: ${tarefaAtual.nome}`);
+            await delay(3000); // Espera renderizar bem
 
-  // ---------- Funções de Ação no Perfil ----------
+            // --- PASSO 1: CLICAR EM CONECTAR ---
+            let btn = findConnectButton();
 
-  async function findMoreButton(timeout = 5000) {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-    	if (await shouldStop()) throw new Error('STOP_REQUESTED');
-      const btns = [...document.querySelectorAll('button')];
-      const moreBtn = btns.find(b => {
-        const txt = (b.innerText || "").trim().toLowerCase();
-        const label = (b.getAttribute('aria-label') || "").toLowerCase();
-        return b.offsetParent !== null && (txt === "mais" || txt === "more" || label.includes("mais") || label.includes("more"));
-      });
-      if (moreBtn && !moreBtn.disabled) return moreBtn;
-      await delay(250);
-    }
-    return null;
-  }
+            // Se não achou na tela, vai para o menu "Mais"
+            if (!btn) {
+                console.log("[VM] Botão não visível. Abrindo menu 'Mais'...");
+                const moreBtn = Array.from(document.querySelectorAll('button')).find(b => {
+                    const label = (b.getAttribute('aria-label') || "").toLowerCase();
+                    return label.includes('mais ações') || label.includes('more actions') || b.innerText.trim().toLowerCase() === 'mais';
+                });
 
-  async function findConnectButton(timeout = 5000) {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-    	if (await shouldStop()) throw new Error('STOP_REQUESTED');
-      const mainConnectBtn = [...document.querySelectorAll('button')].find(b => {
-        const txt = (b.innerText || "").trim().toLowerCase();
-        return (txt === "conectar" || txt === "connect") && b.offsetParent !== null;
-      });
-      if (mainConnectBtn && !mainConnectBtn.disabled) return mainConnectBtn;
+                if (moreBtn) {
+                    moreBtn.click();
+                    await delay(1000);
+                    // Busca dentro do menu (geralmente divs ou spans com role button)
+                    const menuItems = Array.from(document.querySelectorAll('.artdeco-dropdown__item, div[role="button"]'));
+                    btn = menuItems.find(el => {
+                        const t = el.innerText.trim().toLowerCase();
+                        return t === 'conectar' || t === 'connect';
+                    });
+                }
+            }
 
-      const dropdownOptions = [...document.querySelectorAll('[role="option"], [role="menuitem"], .artdeco-dropdown__item')];
-      const dropdownConnectBtn = dropdownOptions.find(el => {
-        const txt = (el.innerText || "").trim().toLowerCase();
-        return (txt.includes("conectar") || txt.includes("connect")) && !txt.includes("desconectar"); 
-      });
+            if (!btn) {
+                console.warn("[VM] ⚠️ Botão Conectar não encontrado (Pendente/Seguir/Bloqueado).");
+                await cleanupAndReturn(returnUrl);
+                return;
+            }
 
-      if (dropdownConnectBtn && dropdownConnectBtn.offsetParent !== null) {
-        return dropdownConnectBtn;
-      }
-      await delay(250);
-    }
-    return null;
-  }
+            console.log("[VM] Clicando em Conectar...");
+            btn.click();
+            await delay(1500);
 
-  async function findAddNoteButton(timeout = 4000) {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-    	if (await shouldStop()) throw new Error('STOP_REQUESTED');
-      const btns = [...document.querySelectorAll('button')];
-      const addNoteBtn = btns.find(b => {
-        const label = (b.getAttribute('aria-label') || b.innerText || "").trim().toLowerCase();
-        return label.includes("adicionar nota") || label.includes("add a note");
-      });
-      if (addNoteBtn && !addNoteBtn.disabled) return addNoteBtn;
-      await delay(150);
-    }
-    return null;
-  }
+            // --- PASSO 2: CHECAGEM DE MODAL (Anti-Erro) ---
+            // Se abriu "Enviar publicação" (o erro do seu print), fecha e sai
+            const modalText = document.body.innerText;
+            if (modalText.includes("Enviar publicação") || modalText.includes("Share post")) {
+                console.error("[VM] 🚨 Modal errado (Share) aberto! Fechando...");
+                const close = document.querySelector('button[aria-label="Fechar"], button[aria-label="Dismiss"]');
+                if (close) close.click();
+                await delay(1000);
+                await cleanupAndReturn(returnUrl);
+                return;
+            }
 
-  async function waitBtnEnviar(timeout = 4000) {
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-    	if (await shouldStop()) throw new Error('STOP_REQUESTED');
-      const btn = [...document.querySelectorAll("button")].find(b => {
-        const t = (b.innerText || "").trim().toLowerCase();
-        return (t === "enviar" || t.includes("enviar convite") || t.includes("enviar agora") || t === "send" || t.includes("send invitation"));
-      });
-      if (btn && !btn.disabled) return btn;
-      await delay(150);
-    }
-    return null;
-  }
+            // --- PASSO 3: NOTA (Opcional) ---
+            // Verifica se é o modal de conexão real
+            if (connectMessage && connectMessage.length > 2) {
+                const addNoteBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.toLowerCase().includes('adicionar nota'));
+                if (addNoteBtn) {
+                    addNoteBtn.click();
+                    await delay(800);
+                    const txt = document.querySelector('textarea');
+                    if (txt) {
+                        txt.value = connectMessage.replace("{nome}", tarefaAtual.nome.split(" ")[0]);
+                        txt.dispatchEvent(new Event('input', { bubbles: true }));
+                        await delay(500);
+                    }
+                }
+            }
 
-  function findNoteField() {
-    return (
-      document.querySelector('textarea[name="message"]') ||
-      document.querySelector('textarea.connect-button-send-invite__custom-message') ||
-      document.querySelector("textarea")
-    );
-  }
+            // --- PASSO 4: ENVIAR FINAL ---
+            const sendBtn = Array.from(document.querySelectorAll('button')).find(b => {
+                const t = b.innerText.trim().toLowerCase();
+                return (t === 'enviar' || t === 'enviar agora' || t === 'send') && !b.disabled;
+            });
 
-  function setText(el, text) {
-    if (!el) return;
-    el.focus();
-    el.value = text;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-  }
+            if (sendBtn) {
+                console.log("[VM] ✅ Enviando...");
+                sendBtn.click();
+                
+                // Conta +1
+                chrome.storage.local.get("connectionsSent", d => {
+                    chrome.storage.local.set({ connectionsSent: (d.connectionsSent || 0) + 1 });
+                });
+                
+                await delay(2000);
+            } else {
+                console.log("[VM] Botão enviar final não achado (talvez já enviado?).");
+            }
 
-  function logEnvio({ nome }) {
-    chrome.storage.local.get("logs", (r) => {
-      const logs = r.logs || [];
-      logs.push({
-        nome,
-        tipo: "Conexão (via Perfil)",
-        data: new Date().toISOString(),
-        profileUrl: window.location.href
-      });
-      chrome.storage.local.set({ logs });
-    });
-  }
+            // --- FIM: VOLTA PARA O LOOP ---
+            await cleanupAndReturn(returnUrl);
 
-  async function cleanupAndReturn(returnUrl) {
-    console.log(`[VM] Limpando tarefa e voltando para: ${returnUrl}`);
-  	await new Promise(r => chrome.storage.local.remove(['tarefaAtual'], r)); // Não limpa 'paginaDeOrigem'
-  	await smartWait(1000, 2500); 
-    window.location.href = returnUrl;
-  }
-
-  // ---------- MAIN (Lógica Principal) ----------
-  (async () => {
-  	let paginaDeOrigem; 
-  	try {
-    	const data = await new Promise(r =>
-    		chrome.storage.local.get(['tarefaAtual', 'paginaDeOrigem', 'connectMessage', 'connectionsSent', 'sendLimit'], r)
-    	);
-
-    	let { tarefaAtual, connectMessage, connectionsSent } = data;
-  		paginaDeOrigem = data.paginaDeOrigem; 
-
-    	if (!tarefaAtual || !paginaDeOrigem || tarefaAtual.tipo !== 'VISITAR_PERFIL') {
-    		console.log("[VM] Perfil carregado, mas não é uma visita de tarefa. Script inativo.");
-    		window.__VM.profileConnectRunning = false;
-    		return;
-  	}
-
-  	console.log(`[VM] Iniciando tarefa de conexão para: ${tarefaAtual.nome}`);
-
-  	await smartWait(3000, 6000); 
-
-  	// 2. Achar o botão "Conectar"
-  	let connectBtn = await findConnectButton();
-
-  	if (!connectBtn) {
-  		const moreBtn = await findMoreButton();
-  		if (moreBtn) {
-  			console.log("[VM] Clicando em 'Mais...'");
-  			moreBtn.click();
-  			await smartWait(800, 1500); 
-  			connectBtn = await findConnectButton();
-  		}
-  	}
-
-  	if (!connectBtn) {
-  		console.error("[VM] NÃO FOI POSSÍVEL achar o botão 'Conectar' no perfil. Abortando tarefa e voltando.");
-  		await cleanupAndReturn(paginaDeOrigem);
-  		return;
-  	}
-
-  	// 3. Clicar em "Conectar"
-  	console.log("[VM] Botão 'Conectar' encontrado. Clicando.");
-  	connectBtn.click();
-  	await smartWait(1000, 2000); 
-
-  	// 4. Clicar em "Adicionar Nota" (SE TIVER MENSAGEM)
-  	const mensagem = (connectMessage || "").replace(/{nome}/g, tarefaAtual.nome.split(' ')[0]);
-  	
-  	if (mensagem.trim().length > 0) {
-  		const addNoteBtn = await findAddNoteButton();
-  		if (!addNoteBtn) {
-  			console.error("[VM] NÃO FOI POSSÍVEL achar 'Adicionar nota' no modal. Abortando e voltando.");
-  			const closeBtn = document.querySelector('button[aria-label="Fechar"]');
-  			if (closeBtn) closeBtn.click();
-  			await cleanupAndReturn(paginaDeOrigem);
-  			return;
-  		}
-
-  		console.log("[VM] Clicando em 'Adicionar nota'.");
-  		addNoteBtn.click();
-  		await smartWait(500, 1000); 
-
-  		// 5. Preencher a mensagem
-  		const textArea = findNoteField();
-  		if (!textArea) {
-  			console.error("[VM] NÃO FOI POSSÍVEL achar o campo de texto. Abortando e voltando.");
-  			const closeBtn = document.querySelector('button[aria-label*="Fechar"]');
-  			if (closeBtn) closeBtn.click();
-  			await cleanupAndReturn(paginaDeOrigem);
-  			return;
-  		}
-
-  		console.log("[VM] Preenchendo mensagem.");
-  		setText(textArea, mensagem);
-  		await smartWait(400, 900); 
-  	} else {
-  		console.log("[VM] Nenhuma mensagem personalizada. Enviando convite sem nota.");
-  	}
-
-  	// 6. Clicar em "Enviar"
-  	const sendBtn = await waitBtnEnviar();
-  	if (!sendBtn) {
-  		console.error("[VM] NÃO FOI POSSÍVEL achar o botão 'Enviar' final. Abortando e voltando.");
-  		const closeBtn = document.querySelector('button[aria-label*="Fechar"]');
-  		if (closeBtn) closeBtn.click();
-  		await cleanupAndReturn(paginaDeOrigem);
-  		return;
-  	}
-
-  	console.log("[VM] ✅ CONVITE ENVIADO. Preparando para voltar.");
-  	sendBtn.click();
-
-  	// 7. Atualizar contagem e Log
-  	const newSentCount = (connectionsSent || 0) + 1;
-  	await new Promise(r => chrome.storage.local.set({ connectionsSent: newSentCount }, r));
-  	logEnvio(tarefaAtual);
-  	
-  	// +PACER (Conectar)
-  	if (window.__pacer?.between) { 
-  		console.log("[VM] Iniciando pausa do 'pacer' (18-33s)...");
-  		await window.__pacer.between('conectar'); 
-  	}
-  	
-  	// 8. Limpar e Voltar para a página de busca
-  	await cleanupAndReturn(paginaDeOrigem);
-
-   } catch (err) {
-  	console.error("[VM] Erro no script de perfil:", err);
-  	if (err.message === 'STOP_REQUESTED') {
-  		console.log("[VM] Processo interrompido pelo usuário.");
-  	}
-  	if (paginaDeOrigem) {
-  		await cleanupAndReturn(paginaDeOrigem);
-  	} else {
-  		window.__VM.profileConnectRunning = false;
-  	}
-   }
-  })();
+        } catch (e) {
+            console.error("[VM] Erro Crítico:", e);
+            // Garante o retorno mesmo com erro para não travar a fila
+            await cleanupAndReturn(returnUrl);
+        }
+    })();
 })();

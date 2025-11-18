@@ -1,122 +1,116 @@
+// content_connect_only.js — V20 (Coletor de Fila)
+// Função: Raspa URLs -> Cria Fila -> Inicia o 1º da Fila -> Gerencia Paginação
+
 (() => {
-    if (window.__VM_RUNNING) return;
-    window.__VM_RUNNING = true;
+    console.log("[VM] COLETOR V20 Iniciado na Busca.");
+
+    // Previne múltiplas execuções na mesma página
+    if (window.__VM_COLLECTOR_RUNNING) return;
+    window.__VM_COLLECTOR_RUNNING = true;
 
     const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-    let queue = [];
-    let currentIndex = 0;
-    let running = false;
+    // --- 1. SELETOR DE PERFIS (O mais seguro) ---
+    function scrapeProfiles() {
+        // Busca links pelo atributo data-view-name (método validado na V10)
+        let links = Array.from(document.querySelectorAll('a[data-view-name="search-result-lockup-title"]'));
+        
+        // Fallback se o LinkedIn mudar o atributo
+        if (links.length === 0) {
+            links = Array.from(document.querySelectorAll('.entity-result__title-text a'));
+        }
 
-    const SELECTORS = {
-        connectBtn: 'button[aria-label*="Conectar"], button[aria-label*="Connect"]',
-        sendBtn: 'button[aria-label*="Enviar"], button[aria-label*="Send"]',
-        addNoteBtn: 'button[aria-label*="Adicionar nota"], button[aria-label*="Add note"]',
-        textarea: 'textarea[name="message"]',
-        closeModal: 'button[aria-label="Fechar"], button[aria-label="Close"]'
-    };
+        // Fallback final (li genérico)
+        if (links.length === 0) {
+            const candidates = Array.from(document.querySelectorAll('li a[href*="/in/"]'));
+            links = candidates.filter(a => {
+                const v = a.getAttribute('data-view-name') || "";
+                return !v.includes("insight") && !v.includes("social") && a.innerText.trim().length > 3;
+            });
+        }
 
-    // =========================================================
-    // 1) COLETA OS PERFIS
-    // =========================================================
-    function collectProfiles() {
-        let cards = [...document.querySelectorAll('a[href^="https://www.linkedin.com/in/"]')]
-            .map(a => ({
+        return links.map(a => {
+            const urlObj = new URL(a.href);
+            return {
                 nome: a.innerText.trim(),
-                url: a.href
-            }));
-
-        queue = cards.map(c => c.url);  // lista de URLs (strings)
-        console.log(`🔍 Perfis encontrados:`, queue);
+                url: (urlObj.origin + urlObj.pathname).replace(/\/$/, "")
+            };
+        }).filter(p => !p.nome.includes("LinkedIn Member")); // Filtra anônimos
     }
 
-    // =========================================================
-    // 2) PROCESSA PERFIL
-    // =========================================================
-    async function processProfile(url) {
-        console.log("➡️ Indo para:", url);
-        window.location.assign(url);
+    // --- 2. PAGINAÇÃO ---
+    async function goToNextPage() {
+        console.log("[VM] Fila vazia. Tentando mudar de página...");
+        const nextBtn = document.querySelector('button[aria-label="Avançar"]') || 
+                        document.querySelector('button[aria-label="Next"]') ||
+                        document.querySelector('.artdeco-pagination__button--next');
 
-        await delay(3000);
+        if (nextBtn && !nextBtn.disabled) {
+            nextBtn.click();
+            return true;
+        }
+        return false;
+    }
 
-        let btn = document.querySelector(SELECTORS.connectBtn);
-        if (!btn) {
-            console.log("❌ Nenhum botão de conexão. Próximo.");
+    // --- 3. LÓGICA PRINCIPAL ---
+    async function startCollection() {
+        const storage = await new Promise(r => chrome.storage.local.get(['visitedProfiles', 'shouldStop', 'profileQueue'], r));
+        
+        if (storage.shouldStop) {
+            console.log("[VM] Parada solicitada.");
             return;
         }
 
-        btn.click();
-        await delay(1200);
+        // Se já existe uma fila ativa (ex: voltamos de um erro), não faz nada, deixa o Operário consumir
+        // Mas como estamos na busca, assumimos que a fila acabou ou precisa ser criada.
+        
+        const rawProfiles = scrapeProfiles();
+        const visited = storage.visitedProfiles || [];
+        
+        // Filtra quem já visitamos no passado
+        const newBatch = rawProfiles.filter(p => !visited.includes(p.url));
 
-        const addNote = document.querySelector(SELECTORS.addNoteBtn);
-        if (addNote) {
-            addNote.click();
-            await delay(800);
+        console.log(`[VM] Encontrados: ${rawProfiles.length} | Novos: ${newBatch.length}`);
 
-            const textarea = document.querySelector(SELECTORS.textarea);
-            if (textarea) {
-                textarea.value = window.__VM_NOTE || "";
-                textarea.dispatchEvent(new Event("input", { bubbles: true }));
-            }
+        if (newBatch.length > 0) {
+            // TEM GENTE NOVA: Cria a fila e inicia o primeiro
+            console.log("[VM] Salvando fila e iniciando o primeiro...");
+            
+            // Salva a fila (excluindo o primeiro que já vamos visitar agora)
+            const queue = newBatch.slice(1); // Do 2º em diante
+            const first = newBatch[0];
 
-            await delay(600);
+            // Adiciona o primeiro aos visitados
+            visited.push(first.url);
 
-            let send = document.querySelector(SELECTORS.sendBtn);
-            if (send) send.click();
+            await chrome.storage.local.set({
+                profileQueue: queue,       // Fila restante
+                visitedProfiles: visited,  // Histórico atualizado
+                tarefaAtual: first,        // O que o operário vai fazer agora
+                paginaDeBuscaUrl: window.location.href // Ponto de retorno
+            });
+
+            // Navega para o primeiro perfil
+            window.location.assign(first.url);
+
         } else {
-            let send = document.querySelector(SELECTORS.sendBtn);
-            if (send) send.click();
+            // NINGUÉM NOVO: Muda de página
+            console.log("[VM] Todos desta página já visitados.");
+            const changed = await goToNextPage();
+            
+            if (!changed) {
+                alert("ViralMind: Fim da lista de busca! (Ou não achei botão próxima)");
+                await chrome.storage.local.set({ shouldStop: true });
+            }
         }
-
-        await delay(2000);
-
-        const close = document.querySelector(SELECTORS.closeModal);
-        if (close) close.click();
-
-        await delay(1000);
     }
 
-    // =========================================================
-    // 3) VOLTA PARA LISTA
-    // =========================================================
-    async function returnToList() {
-        history.back();
-        await delay(2500);
-    }
+    // Auto-start (chamado pelo popup ou pelo reload da página)
+    window.VM_START = startCollection;
+    
+    // Inicia automaticamente se a flag estiver ativa (lógica de loop)
+    chrome.storage.local.get(['shouldStop'], d => {
+        if (!d.shouldStop) startCollection();
+    });
 
-    // =========================================================
-    // 4) LOOP PRINCIPAL
-    // =========================================================
-    async function runQueue() {
-        collectProfiles();
-        running = true;
-
-        while (running && currentIndex < queue.length) {
-            const url = queue[currentIndex];
-            console.log(`🔥 Processando ${currentIndex + 1}/${queue.length}`);
-
-            await processProfile(url);
-            await returnToList();
-
-            currentIndex++;
-            await delay(1500);
-        }
-
-        console.log("✅ Finalizado.");
-        running = false;
-        window.__VM_RUNNING = false;
-    }
-
-    // =========================================================
-    // START & STOP
-    // =========================================================
-    window.VM_START = () => {
-        console.log("▶️ INICIANDO...");
-        runQueue();
-    };
-
-    window.VM_STOP = () => {
-        console.log("⛔ PARANDO...");
-        running = false;
-    };
 })();
